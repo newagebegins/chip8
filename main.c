@@ -16,11 +16,9 @@ typedef int64_t  s64;
 typedef float    r32;
 typedef double   r64;
 
-typedef u32 b32;
-#define TRUE  1
-#define FALSE 0
+typedef u32      b32;
 
-void debugLog(char *format, ...) {
+void debugLog(const char *format, ...) {
   va_list argptr;
   va_start(argptr, format);
   char str[1024];
@@ -37,13 +35,7 @@ void debugLog(char *format, ...) {
 #define BACKBUFFER_STRIDE (BACKBUFFER_WIDTH / 8)
 #define BACKBUFFER_BYTES  (BACKBUFFER_STRIDE * BACKBUFFER_HEIGHT)
 
-typedef struct {
-  u8 *data;
-  u32 size;
-} File;
-
-File readFile(char *path) {
-  File file;
+void readFile(const char *path, u8 **content, u32 *size) {
   BOOL success;
 
   HANDLE fileHandle = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -53,18 +45,16 @@ File readFile(char *path) {
   success = GetFileSizeEx(fileHandle, &fileSize);
   assert(success);
 
-  file.size = fileSize.LowPart;
-  file.data = malloc(file.size);
+  *size = fileSize.LowPart;
+  *content = malloc(*size);
 
   DWORD numBytesRead;
-  success = ReadFile(fileHandle, file.data, file.size, &numBytesRead, NULL);
+  success = ReadFile(fileHandle, *content, *size, &numBytesRead, NULL);
   assert(success);
-  assert(numBytesRead == file.size);
+  assert(numBytesRead == *size);
 
   success = CloseHandle(fileHandle);
   assert(success);
-
-  return file;
 }
 
 #define CHIP8_MEMORY_SIZE    4096
@@ -106,9 +96,11 @@ Chip8* chip8Create(char *programPath) {
   *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0xF0; // E
   *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0x80; // F
 
-  File file = readFile(programPath);
-  memcpy(chip8->mem + CHIP8_PROGRAM_OFFSET, file.data, file.size);
-  free(file.data);
+  u8 *fileContent = NULL;
+  u32 fileSize = 0;
+  readFile(programPath, &fileContent, &fileSize);
+  memcpy(chip8->mem + CHIP8_PROGRAM_OFFSET, fileContent, fileSize);
+  free(fileContent);
 
   chip8->PC = CHIP8_PROGRAM_OFFSET;
 
