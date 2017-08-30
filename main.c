@@ -1,7 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <assert.h>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -17,6 +16,8 @@ typedef float    r32;
 typedef double   r64;
 
 typedef u32      b32;
+
+#define ASSERT(expression) if(!(expression)) *(u8 *)0 = 0;
 
 void debugLog(const char *format, ...) {
   va_list argptr;
@@ -64,22 +65,22 @@ void readFile(const char *path, u8 **content, u32 *size) {
   BOOL success;
 
   HANDLE fileHandle = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-  assert(fileHandle != INVALID_HANDLE_VALUE);
+  ASSERT(fileHandle != INVALID_HANDLE_VALUE);
 
   LARGE_INTEGER fileSize;
   success = GetFileSizeEx(fileHandle, &fileSize);
-  assert(success);
+  ASSERT(success);
 
   *size = fileSize.LowPart;
   *content = malloc(*size);
 
   DWORD numBytesRead;
   success = ReadFile(fileHandle, *content, *size, &numBytesRead, NULL);
-  assert(success);
-  assert(numBytesRead == *size);
+  ASSERT(success);
+  ASSERT(numBytesRead == *size);
 
   success = CloseHandle(fileHandle);
-  assert(success);
+  ASSERT(success);
 }
 
 Chip8* chip8Create(char *programPath) {
@@ -119,7 +120,7 @@ Chip8* chip8Create(char *programPath) {
 void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
   switch (chip8->mem[chip8->PC] >> 4) {
     case 0x0: {
-      assert(chip8->mem[chip8->PC] == 0);
+      ASSERT(chip8->mem[chip8->PC] == 0);
       switch (chip8->mem[chip8->PC+1]) {
         case 0xe0: {
           memset(backbuffer, 0, BACKBUFFER_BYTES);
@@ -127,11 +128,11 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
           break;
         }
         case 0xee: {
-          assert(chip8->SP > 0);
+          ASSERT(chip8->SP > 0);
           chip8->PC = chip8->stack[--chip8->SP];
           break;
         }
-        default: assert(!"Unknown instruction");
+        default: ASSERT(!"Unknown instruction");
       }
       break;
     }
@@ -143,7 +144,7 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
     case 0x2: {
       u16 addr = ((chip8->mem[chip8->PC] & 0xF) << 8) | chip8->mem[chip8->PC + 1];
       chip8->PC += 2;
-      assert(chip8->SP < CHIP8_STACK_SIZE);
+      ASSERT(chip8->SP < CHIP8_STACK_SIZE);
       chip8->stack[chip8->SP++] = chip8->PC;
       chip8->PC = addr;
       break;
@@ -234,7 +235,7 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
           chip8->PC += 2;
           break;
         }
-        default: assert(!"Unknown instruction");
+        default: ASSERT(!"Unknown instruction");
       }
       break;
     }
@@ -266,10 +267,10 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
         if (curY >= BACKBUFFER_HEIGHT) {
           curY -= BACKBUFFER_HEIGHT;
         }
-        assert(curY < BACKBUFFER_HEIGHT);
+        ASSERT(curY < BACKBUFFER_HEIGHT);
         u32 bbOffset = curY * BACKBUFFER_STRIDE + x/8;
         if (xByteOffset == 0) {
-          assert(bbOffset < BACKBUFFER_BYTES);
+          ASSERT(bbOffset < BACKBUFFER_BYTES);
           if (collision == 0) {
             collision = (backbuffer[bbOffset] & spriteRow) != 0;
           }
@@ -278,8 +279,8 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
           u32 offsetL = bbOffset;
           u32 offsetR = bbOffset+1;
           if (offsetR >= BACKBUFFER_BYTES) offsetR -= BACKBUFFER_STRIDE;
-          assert(offsetL < BACKBUFFER_BYTES);
-          assert(offsetR < BACKBUFFER_BYTES);
+          ASSERT(offsetL < BACKBUFFER_BYTES);
+          ASSERT(offsetR < BACKBUFFER_BYTES);
           u8 leftByte  = (spriteRow >> xByteOffset);
           u8 rightByte = (spriteRow << (8 - xByteOffset));
           if (collision == 0) {
@@ -300,7 +301,7 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
         case 0x9e: {
           u8 reg = chip8->mem[chip8->PC] & 0xF;
           u8 key = chip8->V[reg];
-          assert(key <= 0xF);
+          ASSERT(key <= 0xF);
           chip8->PC += 2;
           if (keys[key]) {
             chip8->PC += 2;
@@ -310,14 +311,14 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
         case 0xa1: {
           u8 reg = chip8->mem[chip8->PC] & 0xF;
           u8 key = chip8->V[reg];
-          assert(key <= 0xF);
+          ASSERT(key <= 0xF);
           chip8->PC += 2;
           if (!keys[key]) {
             chip8->PC += 2;
           }
           break;
         }
-        default: assert(!"Unknown instruction");
+        default: ASSERT(!"Unknown instruction");
       }
       break;
     }
@@ -363,7 +364,7 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
         case 0x29: {
           u8 reg = chip8->mem[chip8->PC] & 0xF;
           u8 val = chip8->V[reg];
-          assert(val <= 0xF);
+          ASSERT(val <= 0xF);
           chip8->I = 5 * val;
           chip8->PC += 2;
           break;
@@ -388,11 +389,11 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
           chip8->PC += 2;
           break;
         }
-        default: assert(!"Unknown instruction");
+        default: ASSERT(!"Unknown instruction");
       }
       break;
     }
-    default: assert(!"Unknown instruction");
+    default: ASSERT(!"Unknown instruction");
   }
 
   chip8->cycleCounter--;
@@ -469,7 +470,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceFrequency(&perfcFreq);
   QueryPerformanceCounter(&perfc);
 
-  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
+  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/15PUZZLE");
   b32 keys[CHIP8_NUM_KEYS] = {0};
   r32 cycleTimer = CYCLE_INTERVAL;
 
