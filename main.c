@@ -314,6 +314,12 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
           chip8->PC += 2;
           break;
         }
+        case 0x1e: {
+          u8 x = chip8->mem[chip8->PC] & 0xF;
+          chip8->I += chip8->V[x];
+          chip8->PC += 2;
+          break;
+        }
         case 0x29: {
           u8 reg = chip8->mem[chip8->PC] & 0xF;
           u8 val = chip8->V[reg];
@@ -423,7 +429,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceFrequency(&perfcFreq);
   QueryPerformanceCounter(&perfc);
 
-  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PONG");
+  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
 
   b32 running = TRUE;
 
