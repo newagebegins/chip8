@@ -115,19 +115,26 @@ Chip8* chip8Create(char *programPath) {
   return chip8;
 }
 
-#define INTERVAL_60HZ (1.0f/60.0f)
-#define CYCLE_INTERVAL (1.0f/(60.0f*4))
-r32 timer60hz = INTERVAL_60HZ;
+#define TIMER_HZ 60
+#define CYCLES_PER_TIMER 18
+#define CYCLE_HZ (TIMER_HZ * CYCLES_PER_TIMER)
+#define CYCLE_INTERVAL (1.0f / CYCLE_HZ)
 r32 cycleTimer = CYCLE_INTERVAL;
+u32 timer = CYCLES_PER_TIMER;
 
 #define NUM_KEYS 16
 static b32 keyDown[NUM_KEYS];
 
-void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
+void chip8Run(Chip8 *chip8, u8 *backbuffer) {
   switch (chip8->mem[chip8->PC] >> 4) {
     case 0x0: {
       assert(chip8->mem[chip8->PC] == 0);
       switch (chip8->mem[chip8->PC+1]) {
+        case 0xe0: {
+          memset(backbuffer, 0, BACKBUFFER_BYTES);
+          chip8->PC += 2;
+          break;
+        }
         case 0xee: {
           assert(chip8->SP > 0);
           chip8->PC = chip8->stack[--chip8->SP];
@@ -191,10 +198,24 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
           chip8->PC += 2;
           break;
         }
+        case 0x1: {
+          u8 regX = chip8->mem[chip8->PC] & 0xF;
+          u8 regY = chip8->mem[chip8->PC+1] >> 4;
+          chip8->V[regX] = chip8->V[regX] | chip8->V[regY];
+          chip8->PC += 2;
+          break;
+        }
         case 0x2: {
           u8 regX = chip8->mem[chip8->PC] & 0xF;
           u8 regY = chip8->mem[chip8->PC+1] >> 4;
           chip8->V[regX] = chip8->V[regX] & chip8->V[regY];
+          chip8->PC += 2;
+          break;
+        }
+        case 0x3: {
+          u8 regX = chip8->mem[chip8->PC] & 0xF;
+          u8 regY = chip8->mem[chip8->PC+1] >> 4;
+          chip8->V[regX] = chip8->V[regX] ^ chip8->V[regY];
           chip8->PC += 2;
           break;
         }
@@ -212,6 +233,13 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
           u8 regY = chip8->mem[chip8->PC+1] >> 4;
           chip8->V[0xF] = chip8->V[regX] > chip8->V[regY];
           chip8->V[regX] = chip8->V[regX] - chip8->V[regY];
+          chip8->PC += 2;
+          break;
+        }
+        case 0x6: {
+          u8 x = chip8->mem[chip8->PC] & 0xF;
+          chip8->V[0xF] = chip8->V[x] & 0x1;
+          chip8->V[x] >>= 1;
           chip8->PC += 2;
           break;
         }
@@ -278,6 +306,16 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
     }
     case 0xe: {
       switch (chip8->mem[chip8->PC+1]) {
+        case 0x9e: {
+          u8 reg = chip8->mem[chip8->PC] & 0xF;
+          u8 key = chip8->V[reg];
+          assert(key <= 0xF);
+          chip8->PC += 2;
+          if (keyDown[key]) {
+            chip8->PC += 2;
+          }
+          break;
+        }
         case 0xa1: {
           u8 reg = chip8->mem[chip8->PC] & 0xF;
           u8 key = chip8->V[reg];
@@ -355,9 +393,9 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
     default: assert(!"Unknown instruction");
   }
 
-  timer60hz -= dt;
-  if (timer60hz <= 0) {
-    timer60hz += INTERVAL_60HZ;
+  timer--;
+  if (timer == 0) {
+    timer = CYCLES_PER_TIMER;
     if (chip8->delayTimer > 0) chip8->delayTimer--;
     if (chip8->soundTimer > 0) chip8->soundTimer--;
   }
@@ -481,7 +519,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     cycleTimer -= dt;
     if (cycleTimer <= 0) {
       cycleTimer += CYCLE_INTERVAL;
-      chip8Run(chip8, backbuffer, dt);
+      chip8Run(chip8, backbuffer);
     }
 
     StretchDIBits(deviceContext,
