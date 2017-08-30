@@ -115,9 +115,8 @@ r32 cycleTimer = CYCLE_INTERVAL;
 u32 timer = CYCLES_PER_TIMER;
 
 #define NUM_KEYS 16
-static b32 keyDown[NUM_KEYS];
 
-void chip8Run(Chip8 *chip8, u8 *backbuffer) {
+void chip8Run(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
   switch (chip8->mem[chip8->PC] >> 4) {
     case 0x0: {
       assert(chip8->mem[chip8->PC] == 0);
@@ -303,7 +302,7 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer) {
           u8 key = chip8->V[reg];
           assert(key <= 0xF);
           chip8->PC += 2;
-          if (keyDown[key]) {
+          if (keys[key]) {
             chip8->PC += 2;
           }
           break;
@@ -313,7 +312,7 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer) {
           u8 key = chip8->V[reg];
           assert(key <= 0xF);
           chip8->PC += 2;
-          if (!keyDown[key]) {
+          if (!keys[key]) {
             chip8->PC += 2;
           }
           break;
@@ -333,7 +332,7 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer) {
         case 0x0a: {
           u8 x = chip8->mem[chip8->PC] & 0xF;
           for (u8 key = 0; key < NUM_KEYS; ++key) {
-            if (keyDown[key]) {
+            if (keys[key]) {
               chip8->V[x] = key;
               chip8->PC += 2;
               break;
@@ -471,6 +470,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceCounter(&perfc);
 
   Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
+  b32 keys[NUM_KEYS] = {0};
 
   b32 running = TRUE;
 
@@ -492,22 +492,24 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
           b32 isDown = ((msg.lParam & (1 << 31)) == 0);
           //debugLog("key %x, is down %x\n", msg.wParam, isDown);
           switch (msg.wParam) {
-            case VK_DECIMAL:  keyDown[0x0] = isDown; break;
-            case VK_NUMPAD7:  keyDown[0x1] = isDown; break;
-            case VK_NUMPAD8:  keyDown[0x2] = isDown; break;
-            case VK_NUMPAD9:  keyDown[0x3] = isDown; break;
-            case VK_NUMPAD4:  keyDown[0x4] = isDown; break;
-            case VK_NUMPAD5:  keyDown[0x5] = isDown; break;
-            case VK_NUMPAD6:  keyDown[0x6] = isDown; break;
-            case VK_NUMPAD1:  keyDown[0x7] = isDown; break;
-            case VK_NUMPAD2:  keyDown[0x8] = isDown; break;
-            case VK_NUMPAD3:  keyDown[0x9] = isDown; break;
-            case VK_NUMPAD0:  keyDown[0xa] = isDown; break;
-            case VK_RETURN:   keyDown[0xb] = isDown; break;
-            case VK_DIVIDE:   keyDown[0xc] = isDown; break;
-            case VK_MULTIPLY: keyDown[0xd] = isDown; break;
-            case VK_SUBTRACT: keyDown[0xe] = isDown; break;
-            case VK_ADD:      keyDown[0xf] = isDown; break;
+            case VK_ESCAPE: running = FALSE; break;
+
+            case VK_DECIMAL:  keys[0x0] = isDown; break;
+            case VK_NUMPAD7:  keys[0x1] = isDown; break;
+            case VK_NUMPAD8:  keys[0x2] = isDown; break;
+            case VK_NUMPAD9:  keys[0x3] = isDown; break;
+            case VK_NUMPAD4:  keys[0x4] = isDown; break;
+            case VK_NUMPAD5:  keys[0x5] = isDown; break;
+            case VK_NUMPAD6:  keys[0x6] = isDown; break;
+            case VK_NUMPAD1:  keys[0x7] = isDown; break;
+            case VK_NUMPAD2:  keys[0x8] = isDown; break;
+            case VK_NUMPAD3:  keys[0x9] = isDown; break;
+            case VK_NUMPAD0:  keys[0xa] = isDown; break;
+            case VK_RETURN:   keys[0xb] = isDown; break;
+            case VK_DIVIDE:   keys[0xc] = isDown; break;
+            case VK_MULTIPLY: keys[0xd] = isDown; break;
+            case VK_SUBTRACT: keys[0xe] = isDown; break;
+            case VK_ADD:      keys[0xf] = isDown; break;
           }
           break;
         }
@@ -522,7 +524,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     cycleTimer -= dt;
     if (cycleTimer <= 0) {
       cycleTimer += CYCLE_INTERVAL;
-      chip8Run(chip8, backbuffer);
+      chip8Run(chip8, backbuffer, keys);
     }
 
     StretchDIBits(deviceContext,
