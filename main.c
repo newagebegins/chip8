@@ -338,6 +338,17 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer) {
           chip8->PC += 2;
           break;
         }
+        case 0x0a: {
+          u8 x = chip8->mem[chip8->PC] & 0xF;
+          for (u8 key = 0; key < NUM_KEYS; ++key) {
+            if (keyDown[key]) {
+              chip8->V[x] = key;
+              chip8->PC += 2;
+              break;
+            }
+          }
+          break;
+        }
         case 0x15: {
           u8 reg = chip8->mem[chip8->PC] & 0xF;
           u8 val = chip8->V[reg];
