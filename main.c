@@ -116,7 +116,9 @@ Chip8* chip8Create(char *programPath) {
 }
 
 #define INTERVAL_60HZ (1.0f/60.0f)
+#define CYCLE_INTERVAL (1.0f/(60.0f*4))
 r32 timer60hz = INTERVAL_60HZ;
+r32 cycleTimer = CYCLE_INTERVAL;
 
 #define NUM_KEYS 16
 static b32 keyDown[NUM_KEYS];
@@ -462,7 +464,11 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
       }
     }
 
-    chip8Run(chip8, backbuffer, dt);
+    cycleTimer -= dt;
+    if (cycleTimer <= 0) {
+      cycleTimer += CYCLE_INTERVAL;
+      chip8Run(chip8, backbuffer, dt);
+    }
 
     StretchDIBits(deviceContext,
                   0, 0, windowWidth, windowHeight,
