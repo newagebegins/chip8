@@ -30,6 +30,12 @@ void debugLog(const char *format, ...) {
 #define TARGET_FPS 60.0f
 #define MAX_DT     (1.0f / TARGET_FPS)
 
+#define TIMER_HZ 60
+#define CYCLES_PER_TIMER 18
+#define CYCLE_HZ (TIMER_HZ * CYCLES_PER_TIMER)
+#define CYCLE_INTERVAL (1.0f / CYCLE_HZ)
+r32 cycleTimer = CYCLE_INTERVAL;
+
 #define BACKBUFFER_WIDTH  64
 #define BACKBUFFER_HEIGHT 32
 #define BACKBUFFER_STRIDE (BACKBUFFER_WIDTH / 8)
@@ -61,6 +67,7 @@ void readFile(const char *path, u8 **content, u32 *size) {
 #define CHIP8_PROGRAM_OFFSET 512
 #define CHIP8_NUM_REGISTERS  16
 #define CHIP8_STACK_SIZE     16
+#define CHIP8_NUM_KEYS 16
 
 typedef struct {
   u8  mem[CHIP8_MEMORY_SIZE];
@@ -72,6 +79,8 @@ typedef struct {
 
   u16 stack[CHIP8_STACK_SIZE];
   u8  SP;                      // stack pointer
+
+  u32 cycleCounter;
 } Chip8;
 
 Chip8* chip8Create(char *programPath) {
@@ -103,18 +112,10 @@ Chip8* chip8Create(char *programPath) {
   free(fileContent);
 
   chip8->PC = CHIP8_PROGRAM_OFFSET;
+  chip8->cycleCounter = CYCLES_PER_TIMER;
 
   return chip8;
 }
-
-#define TIMER_HZ 60
-#define CYCLES_PER_TIMER 18
-#define CYCLE_HZ (TIMER_HZ * CYCLES_PER_TIMER)
-#define CYCLE_INTERVAL (1.0f / CYCLE_HZ)
-r32 cycleTimer = CYCLE_INTERVAL;
-u32 timer = CYCLES_PER_TIMER;
-
-#define NUM_KEYS 16
 
 void chip8Run(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
   switch (chip8->mem[chip8->PC] >> 4) {
@@ -331,7 +332,7 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
         }
         case 0x0a: {
           u8 x = chip8->mem[chip8->PC] & 0xF;
-          for (u8 key = 0; key < NUM_KEYS; ++key) {
+          for (u8 key = 0; key < CHIP8_NUM_KEYS; ++key) {
             if (keys[key]) {
               chip8->V[x] = key;
               chip8->PC += 2;
@@ -395,9 +396,9 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
     default: assert(!"Unknown instruction");
   }
 
-  timer--;
-  if (timer == 0) {
-    timer = CYCLES_PER_TIMER;
+  chip8->cycleCounter--;
+  if (chip8->cycleCounter == 0) {
+    chip8->cycleCounter = CYCLES_PER_TIMER;
     if (chip8->delayTimer > 0) chip8->delayTimer--;
     if (chip8->soundTimer > 0) chip8->soundTimer--;
   }
@@ -470,7 +471,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceCounter(&perfc);
 
   Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
-  b32 keys[NUM_KEYS] = {0};
+  b32 keys[CHIP8_NUM_KEYS] = {0};
 
   b32 running = TRUE;
 
