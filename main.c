@@ -239,6 +239,15 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
       }
       break;
     }
+    case 0x9: {
+      u8 x = chip8->mem[chip8->PC] & 0xF;
+      u8 y = chip8->mem[chip8->PC+1] >> 4;
+      chip8->PC += 2;
+      if (chip8->V[x] != chip8->V[y]) {
+        chip8->PC += 2;
+      }
+      break;
+    }
     case 0xa: {
       u16 addr = ((chip8->mem[chip8->PC] & 0xF) << 8) | chip8->mem[chip8->PC + 1];
       chip8->I = addr;
@@ -378,6 +387,14 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
           chip8->mem[chip8->I+0] = hundreds;
           chip8->mem[chip8->I+1] = tens;
           chip8->mem[chip8->I+2] = ones;
+          chip8->PC += 2;
+          break;
+        }
+        case 0x55: {
+          u8 endReg = chip8->mem[chip8->PC] & 0xF;
+          for (u8 i = 0; i <= endReg; ++i) {
+            chip8->mem[chip8->I + i] = chip8->V[i];
+          }
           chip8->PC += 2;
           break;
         }
