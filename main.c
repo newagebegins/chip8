@@ -34,12 +34,31 @@ void debugLog(const char *format, ...) {
 #define CYCLES_PER_TIMER 18
 #define CYCLE_HZ (TIMER_HZ * CYCLES_PER_TIMER)
 #define CYCLE_INTERVAL (1.0f / CYCLE_HZ)
-r32 cycleTimer = CYCLE_INTERVAL;
 
 #define BACKBUFFER_WIDTH  64
 #define BACKBUFFER_HEIGHT 32
 #define BACKBUFFER_STRIDE (BACKBUFFER_WIDTH / 8)
 #define BACKBUFFER_BYTES  (BACKBUFFER_STRIDE * BACKBUFFER_HEIGHT)
+
+#define CHIP8_MEMORY_SIZE    4096
+#define CHIP8_PROGRAM_OFFSET 512
+#define CHIP8_NUM_REGISTERS  16
+#define CHIP8_STACK_SIZE     16
+#define CHIP8_NUM_KEYS       16
+
+typedef struct {
+  u8  mem[CHIP8_MEMORY_SIZE];
+  u16 PC;                      // program counter
+  u8  V[CHIP8_NUM_REGISTERS];  // registers
+  u16 I;
+  u8  delayTimer;
+  u8  soundTimer;
+
+  u16 stack[CHIP8_STACK_SIZE];
+  u8  SP;                      // stack pointer
+
+  u32 cycleCounter;
+} Chip8;
 
 void readFile(const char *path, u8 **content, u32 *size) {
   BOOL success;
@@ -62,26 +81,6 @@ void readFile(const char *path, u8 **content, u32 *size) {
   success = CloseHandle(fileHandle);
   assert(success);
 }
-
-#define CHIP8_MEMORY_SIZE    4096
-#define CHIP8_PROGRAM_OFFSET 512
-#define CHIP8_NUM_REGISTERS  16
-#define CHIP8_STACK_SIZE     16
-#define CHIP8_NUM_KEYS 16
-
-typedef struct {
-  u8  mem[CHIP8_MEMORY_SIZE];
-  u16 PC;                      // program counter
-  u8  V[CHIP8_NUM_REGISTERS];  // registers
-  u16 I;
-  u8  delayTimer;
-  u8  soundTimer;
-
-  u16 stack[CHIP8_STACK_SIZE];
-  u8  SP;                      // stack pointer
-
-  u32 cycleCounter;
-} Chip8;
 
 Chip8* chip8Create(char *programPath) {
   Chip8 *chip8 = calloc(sizeof(Chip8), 1);
@@ -117,7 +116,7 @@ Chip8* chip8Create(char *programPath) {
   return chip8;
 }
 
-void chip8Run(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
+void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
   switch (chip8->mem[chip8->PC] >> 4) {
     case 0x0: {
       assert(chip8->mem[chip8->PC] == 0);
@@ -472,6 +471,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
 
   Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
   b32 keys[CHIP8_NUM_KEYS] = {0};
+  r32 cycleTimer = CYCLE_INTERVAL;
 
   b32 running = TRUE;
 
@@ -525,7 +525,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     cycleTimer -= dt;
     if (cycleTimer <= 0) {
       cycleTimer += CYCLE_INTERVAL;
-      chip8Run(chip8, backbuffer, keys);
+      chip8DoCycle(chip8, backbuffer, keys);
     }
 
     StretchDIBits(deviceContext,
