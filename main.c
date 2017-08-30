@@ -243,7 +243,12 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
       for (u8 row = 0; row < height; ++row) {
         u8 spriteRow = chip8->mem[chip8->I + row];
         u8 xByteOffset = x%8;
-        u32 bbOffset = (y + row) * BACKBUFFER_STRIDE + x/8;
+        u32 curY = y + row;
+        if (curY >= BACKBUFFER_HEIGHT) {
+          curY -= BACKBUFFER_HEIGHT;
+        }
+        assert(curY < BACKBUFFER_HEIGHT);
+        u32 bbOffset = curY * BACKBUFFER_STRIDE + x/8;
         if (xByteOffset == 0) {
           assert(bbOffset < BACKBUFFER_BYTES);
           if (collision == 0) {
@@ -251,17 +256,20 @@ void chip8Run(Chip8 *chip8, u8 *backbuffer, r32 dt) {
           }
           backbuffer[bbOffset] ^= spriteRow;
         } else {
-          assert(bbOffset   < BACKBUFFER_BYTES);
-          assert(bbOffset+1 < BACKBUFFER_BYTES);
+          u32 offsetL = bbOffset;
+          u32 offsetR = bbOffset+1;
+          if (offsetR >= BACKBUFFER_BYTES) offsetR -= BACKBUFFER_STRIDE;
+          assert(offsetL < BACKBUFFER_BYTES);
+          assert(offsetR < BACKBUFFER_BYTES);
           u8 leftByte  = (spriteRow >> xByteOffset);
           u8 rightByte = (spriteRow << (8 - xByteOffset));
           if (collision == 0) {
-            u8 leftByteCollision  = (backbuffer[bbOffset]   & leftByte)  != 0;
-            u8 rightByteCollision = (backbuffer[bbOffset+1] & rightByte) != 0;
+            u8 leftByteCollision  = (backbuffer[offsetL] & leftByte)  != 0;
+            u8 rightByteCollision = (backbuffer[offsetR] & rightByte) != 0;
             collision = (leftByteCollision || rightByteCollision);
           }
-          backbuffer[bbOffset]   ^= leftByte;
-          backbuffer[bbOffset+1] ^= rightByte;
+          backbuffer[offsetL] ^= leftByte;
+          backbuffer[offsetR] ^= rightByte;
         }
       }
       chip8->V[0xF] = collision;
