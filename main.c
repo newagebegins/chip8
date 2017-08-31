@@ -457,7 +457,6 @@ LRESULT CALLBACK wndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdShow) {
   UNREFERENCED_PARAMETER(prevInst);
-  UNREFERENCED_PARAMETER(cmdLine);
 
   WNDCLASS wndClass = {0};
   wndClass.style = CS_HREDRAW | CS_VREDRAW;
@@ -511,7 +510,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceFrequency(&perfcFreq);
   QueryPerformanceCounter(&perfc);
 
-  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
+  Chip8 *chip8 = chip8Create(cmdLine);
   b32 keys[CHIP8_NUM_KEYS] = {0};
   r32 cycleTimer = CYCLE_INTERVAL;
 
