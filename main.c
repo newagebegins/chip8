@@ -32,7 +32,7 @@ void debugLog(const char *format, ...) {
 #define MAX_DT     (1.0f / TARGET_FPS)
 
 #define TIMER_HZ 60
-#define CYCLES_PER_TIMER 18
+#define CYCLES_PER_TIMER 9
 #define CYCLE_HZ (TIMER_HZ * CYCLES_PER_TIMER)
 #define CYCLE_INTERVAL (1.0f / CYCLE_HZ)
 
@@ -48,6 +48,14 @@ void debugLog(const char *format, ...) {
 #define CHIP8_NUM_KEYS       16
 
 typedef struct {
+  u8 mem[BACKBUFFER_BYTES];
+  HDC deviceContext;
+  u32 windowWidth;
+  u32 windowHeight;
+  BITMAPINFO *bitmapInfo;
+} Backbuffer;
+
+typedef struct {
   u8  mem[CHIP8_MEMORY_SIZE];
   u16 PC;                      // program counter
   u8  V[CHIP8_NUM_REGISTERS];  // registers
@@ -60,6 +68,14 @@ typedef struct {
 
   u32 cycleCounter;
 } Chip8;
+
+void displayBackbuffer(Backbuffer *bb) {
+  StretchDIBits(bb->deviceContext,
+                0, 0, bb->windowWidth, bb->windowHeight,
+                0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT,
+                bb->mem, bb->bitmapInfo,
+                DIB_RGB_COLORS, SRCCOPY);
+}
 
 void readFile(const char *path, u8 **content, u32 *size) {
   BOOL success;
@@ -117,13 +133,13 @@ Chip8* chip8Create(char *programPath) {
   return chip8;
 }
 
-void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
+void chip8DoCycle(Chip8 *chip8, Backbuffer *bb, const b32 *keys) {
   switch (chip8->mem[chip8->PC] >> 4) {
     case 0x0: {
       ASSERT(chip8->mem[chip8->PC] == 0);
       switch (chip8->mem[chip8->PC+1]) {
         case 0xe0: {
-          memset(backbuffer, 0, BACKBUFFER_BYTES);
+          memset(bb->mem, 0, BACKBUFFER_BYTES);
           chip8->PC += 2;
           break;
         }
@@ -279,18 +295,15 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
       for (u8 row = 0; row < height; ++row) {
         u8 spriteRow = chip8->mem[chip8->I + row];
         u8 xByteOffset = x%8;
-        u32 curY = y + row;
-        if (curY >= BACKBUFFER_HEIGHT) {
-          curY -= BACKBUFFER_HEIGHT;
-        }
-        ASSERT(curY < BACKBUFFER_HEIGHT);
+        u32 curY = (y + row) % BACKBUFFER_HEIGHT;
         u32 bbOffset = curY * BACKBUFFER_STRIDE + x/8;
         if (xByteOffset == 0) {
           ASSERT(bbOffset < BACKBUFFER_BYTES);
           if (collision == 0) {
-            collision = (backbuffer[bbOffset] & spriteRow) != 0;
+            collision = (bb->mem[bbOffset] & spriteRow) != 0;
           }
-          backbuffer[bbOffset] ^= spriteRow;
+          bb->mem[bbOffset] ^= spriteRow;
+          displayBackbuffer(bb);
         } else {
           u32 offsetL = bbOffset;
           u32 offsetR = bbOffset+1;
@@ -300,16 +313,19 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
           u8 leftByte  = (spriteRow >> xByteOffset);
           u8 rightByte = (spriteRow << (8 - xByteOffset));
           if (collision == 0) {
-            u8 leftByteCollision  = (backbuffer[offsetL] & leftByte)  != 0;
-            u8 rightByteCollision = (backbuffer[offsetR] & rightByte) != 0;
+            u8 leftByteCollision  = (bb->mem[offsetL] & leftByte)  != 0;
+            u8 rightByteCollision = (bb->mem[offsetR] & rightByte) != 0;
             collision = (leftByteCollision || rightByteCollision);
           }
-          backbuffer[offsetL] ^= leftByte;
-          backbuffer[offsetR] ^= rightByte;
+          bb->mem[offsetL] ^= leftByte;
+          displayBackbuffer(bb);
+          bb->mem[offsetR] ^= rightByte;
+          displayBackbuffer(bb);
         }
       }
       chip8->V[0xF] = collision;
       chip8->PC += 2;
+
       break;
     }
     case 0xe: {
@@ -451,40 +467,41 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   wndClass.lpszClassName = "CHIP-8";
   RegisterClass(&wndClass);
 
-  u32 windowScale = 12;
-  u32 windowWidth = BACKBUFFER_WIDTH * windowScale;
-  u32 windowHeight = BACKBUFFER_HEIGHT * windowScale;
+  Backbuffer *bb = calloc(sizeof(Backbuffer), 1);
+
+  u32 windowScale = 14;
+  bb->windowWidth = BACKBUFFER_WIDTH * windowScale;
+  bb->windowHeight = BACKBUFFER_HEIGHT * windowScale;
 
   RECT crect = {0};
-  crect.right = windowWidth;
-  crect.bottom = windowHeight;
+  crect.right = bb->windowWidth;
+  crect.bottom = bb->windowHeight;
 
   DWORD wndStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
   AdjustWindowRect(&crect, wndStyle, 0);
 
-  HWND wnd = CreateWindowEx(0, wndClass.lpszClassName, "CHIP-8", wndStyle, 300, 100,
+  HWND wnd = CreateWindowEx(0, wndClass.lpszClassName, "CHIP-8", wndStyle, 0, 0,
                             crect.right - crect.left, crect.bottom - crect.top,
                             0, 0, inst, 0);
   ShowWindow(wnd, cmdShow);
   UpdateWindow(wnd);
 
-  HDC deviceContext = GetDC(wnd);
-  u8 *backbuffer = calloc(BACKBUFFER_BYTES, 1);
+  bb->deviceContext = GetDC(wnd);
 
-  BITMAPINFO *bitmapInfo = calloc(sizeof(BITMAPINFOHEADER) + (2 * sizeof(RGBQUAD)), 1);
-  bitmapInfo->bmiHeader.biSize        = sizeof(bitmapInfo->bmiHeader);
-  bitmapInfo->bmiHeader.biWidth       = BACKBUFFER_WIDTH;
-  bitmapInfo->bmiHeader.biHeight      = -BACKBUFFER_HEIGHT;
-  bitmapInfo->bmiHeader.biPlanes      = 1;
-  bitmapInfo->bmiHeader.biBitCount    = 1;
-  bitmapInfo->bmiHeader.biCompression = BI_RGB;
-  bitmapInfo->bmiHeader.biClrUsed     = 2;
+  bb->bitmapInfo = calloc(sizeof(BITMAPINFOHEADER) + (2 * sizeof(RGBQUAD)), 1);
+  bb->bitmapInfo->bmiHeader.biSize        = sizeof(bb->bitmapInfo->bmiHeader);
+  bb->bitmapInfo->bmiHeader.biWidth       = BACKBUFFER_WIDTH;
+  bb->bitmapInfo->bmiHeader.biHeight      = -BACKBUFFER_HEIGHT;
+  bb->bitmapInfo->bmiHeader.biPlanes      = 1;
+  bb->bitmapInfo->bmiHeader.biBitCount    = 1;
+  bb->bitmapInfo->bmiHeader.biCompression = BI_RGB;
+  bb->bitmapInfo->bmiHeader.biClrUsed     = 2;
 
   RGBQUAD black = {0x44, 0x44, 0x44, 0x00};
   RGBQUAD white = {0xFF, 0xFF, 0xFF, 0x00};
 
-  bitmapInfo->bmiColors[0] = black;
-  bitmapInfo->bmiColors[1] = white;
+  bb->bitmapInfo->bmiColors[0] = black;
+  bb->bitmapInfo->bmiColors[1] = white;
 
   r32 dt = 0.0f;
   LARGE_INTEGER perfcFreq = {0};
@@ -494,7 +511,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceFrequency(&perfcFreq);
   QueryPerformanceCounter(&perfc);
 
-  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BLINKY");
+  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
   b32 keys[CHIP8_NUM_KEYS] = {0};
   r32 cycleTimer = CYCLE_INTERVAL;
 
@@ -550,13 +567,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     cycleTimer -= dt;
     if (cycleTimer <= 0) {
       cycleTimer += CYCLE_INTERVAL;
-      chip8DoCycle(chip8, backbuffer, keys);
+      chip8DoCycle(chip8, bb, keys);
     }
-
-    StretchDIBits(deviceContext,
-                  0, 0, windowWidth, windowHeight,
-                  0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT,
-                  backbuffer, bitmapInfo,
-                  DIB_RGB_COLORS, SRCCOPY);
   }
 }
