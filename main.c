@@ -235,6 +235,13 @@ void chip8DoCycle(Chip8 *chip8, u8 *backbuffer, const b32 *keys) {
           chip8->PC += 2;
           break;
         }
+        case 0xe: {
+          u8 x = chip8->mem[chip8->PC] & 0xF;
+          chip8->V[0xF] = chip8->V[x] & 0x80;
+          chip8->V[x] <<= 1;
+          chip8->PC += 2;
+          break;
+        }
         default: ASSERT(!"Unknown instruction");
       }
       break;
@@ -487,7 +494,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceFrequency(&perfcFreq);
   QueryPerformanceCounter(&perfc);
 
-  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/15PUZZLE");
+  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BLINKY");
   b32 keys[CHIP8_NUM_KEYS] = {0};
   r32 cycleTimer = CYCLE_INTERVAL;
 
