@@ -58,6 +58,7 @@ struct Chip8 {
     u16 I;
     u8  delayTimer;
     u8  soundTimer;
+    u8  prevSoundTimer;
 
     u16 stack[CHIP8_STACK_SIZE];
     u8  SP;                      // stack pointer
@@ -415,6 +416,17 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
         chip8->cycleCounter = CYCLES_PER_TIMER;
         if (chip8->delayTimer > 0) chip8->delayTimer--;
         if (chip8->soundTimer > 0) chip8->soundTimer--;
+
+        if (chip8->prevSoundTimer == 0 && chip8->soundTimer > 0) {
+            sound_start();
+        }
+        else if (chip8->prevSoundTimer > 0 && chip8->soundTimer == 0) {
+            sound_stop();
+        }
+        else if (chip8->soundTimer > 0) {
+            sound_update();
+        }
+        chip8->prevSoundTimer = chip8->soundTimer;
     }
 }
 
@@ -469,6 +481,8 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     bb->bitmapInfo->bmiHeader.biBitCount = 32;
     bb->bitmapInfo->bmiHeader.biCompression = BI_RGB;
 
+    sound_init();
+
     r32 dt = 0.0f;
     LARGE_INTEGER perfcFreq = { 0 };
     LARGE_INTEGER perfc = { 0 };
@@ -480,7 +494,6 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     Chip8 *chip8 = chip8Create(cmdLine);
     b32 keys[CHIP8_NUM_KEYS] = { 0 };
     r32 cycleTimer = CYCLE_INTERVAL;
-    u8 prevSoundTimer = 0;
 
     b32 running = TRUE;
 
@@ -536,15 +549,6 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
             cycleTimer += CYCLE_INTERVAL;
             chip8DoCycle(chip8, keys);
         }
-
-        if (prevSoundTimer == 0 && chip8->soundTimer > 0) {
-            sound_start();
-        }
-        else if (prevSoundTimer > 0 && chip8->soundTimer == 0) {
-            sound_stop();
-        }
-
-        prevSoundTimer = chip8->soundTimer;
 
         for (u32 row = 0; row < SCREEN_HEIGHT; ++row)
             for (u32 col = 0; col < SCREEN_WIDTH; ++col)
