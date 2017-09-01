@@ -36,10 +36,13 @@ void debugLog(const char *format, ...) {
 #define CYCLE_HZ (TIMER_HZ * CYCLES_PER_TIMER)
 #define CYCLE_INTERVAL (1.0f / CYCLE_HZ)
 
-#define BACKBUFFER_WIDTH  64
-#define BACKBUFFER_HEIGHT 32
-#define BACKBUFFER_STRIDE (BACKBUFFER_WIDTH / 8)
-#define BACKBUFFER_BYTES  (BACKBUFFER_STRIDE * BACKBUFFER_HEIGHT)
+#define SCREEN_WIDTH  64
+#define SCREEN_HEIGHT 32
+#define SCREEN_BYTES (SCREEN_HEIGHT * SCREEN_WIDTH)
+
+#define BACKBUFFER_BYTES (SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(u32))
+
+static u8 screen[SCREEN_HEIGHT][SCREEN_WIDTH];
 
 #define CHIP8_MEMORY_SIZE    4096
 #define CHIP8_PROGRAM_OFFSET 512
@@ -48,7 +51,7 @@ void debugLog(const char *format, ...) {
 #define CHIP8_NUM_KEYS       16
 
 typedef struct {
-    u8 mem[BACKBUFFER_BYTES];
+    u32 mem[BACKBUFFER_BYTES];
     HDC deviceContext;
     u32 windowWidth;
     u32 windowHeight;
@@ -72,7 +75,7 @@ typedef struct {
 void displayBackbuffer(Backbuffer *bb) {
     StretchDIBits(bb->deviceContext,
         0, 0, bb->windowWidth, bb->windowHeight,
-        0, 0, BACKBUFFER_WIDTH, BACKBUFFER_HEIGHT,
+        0, 0, SCREEN_WIDTH, SCREEN_HEIGHT,
         bb->mem, bb->bitmapInfo,
         DIB_RGB_COLORS, SRCCOPY);
 }
@@ -133,13 +136,13 @@ Chip8* chip8Create(char *programPath) {
     return chip8;
 }
 
-void chip8DoCycle(Chip8 *chip8, Backbuffer *bb, const b32 *keys) {
+void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
     switch (chip8->mem[chip8->PC] >> 4) {
         case 0x0: {
             ASSERT(chip8->mem[chip8->PC] == 0);
             switch (chip8->mem[chip8->PC + 1]) {
                 case 0xe0: {
-                    memset(bb->mem, 0, BACKBUFFER_BYTES);
+                    memset(screen, 0, SCREEN_BYTES);
                     chip8->PC += 2;
                     break;
                 }
@@ -289,44 +292,21 @@ void chip8DoCycle(Chip8 *chip8, Backbuffer *bb, const b32 *keys) {
             u8 xReg = chip8->mem[chip8->PC] & 0xF;
             u8 yReg = chip8->mem[chip8->PC + 1] >> 4;
             u8 height = chip8->mem[chip8->PC + 1] & 0xF;
-            u8 x = chip8->V[xReg];
-            u8 y = chip8->V[yReg];
             u8 collision = 0;
             for (u8 row = 0; row < height; ++row) {
+                u8 curY = chip8->V[yReg] + row;
+                if (curY >= SCREEN_HEIGHT) break;
                 u8 spriteRow = chip8->mem[chip8->I + row];
-                u8 xByteOffset = x % 8;
-                u32 curY = (y + row) % BACKBUFFER_HEIGHT;
-                u32 bbOffset = curY * BACKBUFFER_STRIDE + x / 8;
-                if (xByteOffset == 0) {
-                    ASSERT(bbOffset < BACKBUFFER_BYTES);
-                    if (collision == 0) {
-                        collision = (bb->mem[bbOffset] & spriteRow) != 0;
-                    }
-                    bb->mem[bbOffset] ^= spriteRow;
-                    displayBackbuffer(bb);
-                }
-                else {
-                    u32 offsetL = bbOffset;
-                    u32 offsetR = bbOffset + 1;
-                    if (offsetR >= BACKBUFFER_BYTES) offsetR -= BACKBUFFER_STRIDE;
-                    ASSERT(offsetL < BACKBUFFER_BYTES);
-                    ASSERT(offsetR < BACKBUFFER_BYTES);
-                    u8 leftByte = (spriteRow >> xByteOffset);
-                    u8 rightByte = (spriteRow << (8 - xByteOffset));
-                    if (collision == 0) {
-                        u8 leftByteCollision = (bb->mem[offsetL] & leftByte) != 0;
-                        u8 rightByteCollision = (bb->mem[offsetR] & rightByte) != 0;
-                        collision = (leftByteCollision || rightByteCollision);
-                    }
-                    bb->mem[offsetL] ^= leftByte;
-                    displayBackbuffer(bb);
-                    bb->mem[offsetR] ^= rightByte;
-                    displayBackbuffer(bb);
+                for (u8 col = 0; col < 8; ++col) {
+                    u8 curX = chip8->V[xReg] + col;
+                    if (curX >= SCREEN_WIDTH) break;
+                    u8 spriteBit = (spriteRow >> (7 - col)) & 1;
+                    if (collision == 0) collision = screen[curY][curX] & spriteBit;
+                    screen[curY][curX] ^= spriteBit;
                 }
             }
             chip8->V[0xF] = collision;
             chip8->PC += 2;
-
             break;
         }
         case 0xe: {
@@ -470,8 +450,8 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     Backbuffer *bb = calloc(sizeof(Backbuffer), 1);
 
     u32 windowScale = 14;
-    bb->windowWidth = BACKBUFFER_WIDTH * windowScale;
-    bb->windowHeight = BACKBUFFER_HEIGHT * windowScale;
+    bb->windowWidth = SCREEN_WIDTH * windowScale;
+    bb->windowHeight = SCREEN_HEIGHT * windowScale;
 
     RECT crect = { 0 };
     crect.right = bb->windowWidth;
@@ -488,20 +468,13 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
 
     bb->deviceContext = GetDC(wnd);
 
-    bb->bitmapInfo = calloc(sizeof(BITMAPINFOHEADER) + (2 * sizeof(RGBQUAD)), 1);
+    bb->bitmapInfo = calloc(sizeof(BITMAPINFOHEADER), 1);
     bb->bitmapInfo->bmiHeader.biSize = sizeof(bb->bitmapInfo->bmiHeader);
-    bb->bitmapInfo->bmiHeader.biWidth = BACKBUFFER_WIDTH;
-    bb->bitmapInfo->bmiHeader.biHeight = -BACKBUFFER_HEIGHT;
+    bb->bitmapInfo->bmiHeader.biWidth = SCREEN_WIDTH;
+    bb->bitmapInfo->bmiHeader.biHeight = -SCREEN_HEIGHT;
     bb->bitmapInfo->bmiHeader.biPlanes = 1;
-    bb->bitmapInfo->bmiHeader.biBitCount = 1;
+    bb->bitmapInfo->bmiHeader.biBitCount = 32;
     bb->bitmapInfo->bmiHeader.biCompression = BI_RGB;
-    bb->bitmapInfo->bmiHeader.biClrUsed = 2;
-
-    RGBQUAD black = { 0x44, 0x44, 0x44, 0x00 };
-    RGBQUAD white = { 0xFF, 0xFF, 0xFF, 0x00 };
-
-    bb->bitmapInfo->bmiColors[0] = black;
-    bb->bitmapInfo->bmiColors[1] = white;
 
     r32 dt = 0.0f;
     LARGE_INTEGER perfcFreq = { 0 };
@@ -567,7 +540,12 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
         cycleTimer -= dt;
         if (cycleTimer <= 0) {
             cycleTimer += CYCLE_INTERVAL;
-            chip8DoCycle(chip8, bb, keys);
+            chip8DoCycle(chip8, keys);
         }
+
+        for (u32 row = 0; row < SCREEN_HEIGHT; ++row)
+            for (u32 col = 0; col < SCREEN_WIDTH; ++col)
+                bb->mem[row*SCREEN_WIDTH+ col] = screen[row][col] ? 0xffffffff : 0xff000000;
+        displayBackbuffer(bb);
     }
 }
