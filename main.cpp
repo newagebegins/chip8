@@ -423,9 +423,7 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
         else if (chip8->prevSoundTimer > 0 && chip8->soundTimer == 0) {
             sound_stop();
         }
-        else if (chip8->soundTimer > 0) {
-            sound_update();
-        }
+        sound_update();
         chip8->prevSoundTimer = chip8->soundTimer;
     }
 }

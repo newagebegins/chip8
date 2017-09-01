@@ -22,6 +22,49 @@ static const int samplesPerSec = 48000;
 static const float maxBufferDurationSec = (1.0f/60.0f)*2.0f;
 static UINT32 bufferFramesCount;
 
+static float frequency = 440.0f;
+float phase = 0;
+static bool isPlaying = false;
+#define MAX_AMPLITUDE 0x7FFF/20
+static short amplitude = 0;
+static short amplitudeStep = 1;
+
+void load_sound() {
+    HRESULT hr;
+
+    UINT32 numFramesPadding;
+    hr = audioClient->GetCurrentPadding(&numFramesPadding);
+    assert(SUCCEEDED(hr));
+
+    UINT32 numFramesAvailable = bufferFramesCount - numFramesPadding;
+
+    short *buffer;
+    hr = renderClient->GetBuffer(numFramesAvailable, (BYTE**)&buffer);
+    assert(SUCCEEDED(hr));
+
+    float incr = TWOPI*frequency / samplesPerSec;
+
+    for (int i = 0; i < numFramesAvailable; ++i) {
+        buffer[i] = sinf(phase) * amplitude;
+        phase += incr;
+        if (phase >= TWOPI) phase -= TWOPI;
+        if (isPlaying) {
+            amplitude += amplitudeStep;
+            if (amplitude > MAX_AMPLITUDE) {
+                amplitude = MAX_AMPLITUDE;
+            }
+        } else {
+            amplitude -= amplitudeStep;
+            if (amplitude < 0) {
+                amplitude = 0;
+            }
+        }
+    }
+
+    hr = renderClient->ReleaseBuffer(numFramesAvailable, 0);
+    assert(SUCCEEDED(hr));
+}
+
 void sound_init() {
     HRESULT hr;
 
@@ -54,52 +97,21 @@ void sound_init() {
 
     hr = audioClient->GetService(IID_IAudioRenderClient, (void**)&renderClient);
     assert(SUCCEEDED(hr));
-}
 
-static float frequency = 440.0f;
-float phase = 0;
-
-void load_sound() {
-    HRESULT hr;
-
-    UINT32 numFramesPadding;
-    hr = audioClient->GetCurrentPadding(&numFramesPadding);
-    assert(SUCCEEDED(hr));
-
-    UINT32 numFramesAvailable = bufferFramesCount - numFramesPadding;
-
-    short *buffer;
-    hr = renderClient->GetBuffer(numFramesAvailable, (BYTE**)&buffer);
-    assert(SUCCEEDED(hr));
-
-    float incr = TWOPI*frequency / samplesPerSec;
-    
-    for (int i = 0; i < numFramesAvailable; ++i) {
-        buffer[i] = sinf(phase) * 0x7FFF;
-        phase += incr;
-        if (phase >= TWOPI) phase -= TWOPI;
-    }
-
-    hr = renderClient->ReleaseBuffer(numFramesAvailable, 0);
-    assert(SUCCEEDED(hr));
+    load_sound();
+    audioClient->Start();
 }
 
 void sound_start() {
     debug_log("sound_start\n");
-    phase = 0;
-    load_sound();
-    HRESULT hr = audioClient->Start();
-    assert(SUCCEEDED(hr));
+    isPlaying = true;
 }
 
 void sound_stop() {
     debug_log("sound_stop\n");
-    HRESULT hr = audioClient->Stop();
-    assert(SUCCEEDED(hr));
-    hr = audioClient->Reset();
-    assert(SUCCEEDED(hr));
+    isPlaying = false;
 }
 
 void sound_update() {
-    load_sound();
+  load_sound();
 }
