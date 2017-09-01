@@ -50,15 +50,15 @@ static u8 screen[SCREEN_HEIGHT][SCREEN_WIDTH];
 #define CHIP8_STACK_SIZE     16
 #define CHIP8_NUM_KEYS       16
 
-typedef struct {
+struct Backbuffer {
     u32 mem[BACKBUFFER_BYTES];
     HDC deviceContext;
     u32 windowWidth;
     u32 windowHeight;
     BITMAPINFO *bitmapInfo;
-} Backbuffer;
+};
 
-typedef struct {
+struct Chip8 {
     u8  mem[CHIP8_MEMORY_SIZE];
     u16 PC;                      // program counter
     u8  V[CHIP8_NUM_REGISTERS];  // registers
@@ -70,7 +70,7 @@ typedef struct {
     u8  SP;                      // stack pointer
 
     u32 cycleCounter;
-} Chip8;
+};
 
 void displayBackbuffer(Backbuffer *bb) {
     StretchDIBits(bb->deviceContext,
@@ -91,7 +91,7 @@ void readFile(const char *path, u8 **content, u32 *size) {
     ASSERT(success);
 
     *size = fileSize.LowPart;
-    *content = malloc(*size);
+    *content = (u8 *) malloc(*size);
 
     DWORD numBytesRead;
     success = ReadFile(fileHandle, *content, *size, &numBytesRead, NULL);
@@ -103,7 +103,7 @@ void readFile(const char *path, u8 **content, u32 *size) {
 }
 
 Chip8* chip8Create(char *programPath) {
-    Chip8 *chip8 = calloc(sizeof(Chip8), 1);
+    Chip8 *chip8 = (Chip8 *) calloc(sizeof(Chip8), 1);
 
     // load font data into memory
     u8 *p = chip8->mem;
@@ -447,7 +447,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     wndClass.lpszClassName = "CHIP-8";
     RegisterClass(&wndClass);
 
-    Backbuffer *bb = calloc(sizeof(Backbuffer), 1);
+    Backbuffer *bb = (Backbuffer *) calloc(sizeof(Backbuffer), 1);
 
     u32 windowScale = 14;
     bb->windowWidth = SCREEN_WIDTH * windowScale;
@@ -468,7 +468,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
 
     bb->deviceContext = GetDC(wnd);
 
-    bb->bitmapInfo = calloc(sizeof(BITMAPINFOHEADER), 1);
+    bb->bitmapInfo = (BITMAPINFO *) calloc(sizeof(BITMAPINFOHEADER), 1);
     bb->bitmapInfo->bmiHeader.biSize = sizeof(bb->bitmapInfo->bmiHeader);
     bb->bitmapInfo->bmiHeader.biWidth = SCREEN_WIDTH;
     bb->bitmapInfo->bmiHeader.biHeight = -SCREEN_HEIGHT;
