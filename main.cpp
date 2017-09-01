@@ -1,6 +1,8 @@
+#include "sound.h"
+#include "debug.h"
+
 #include <windows.h>
 #include <stdint.h>
-#include <stdio.h>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -18,15 +20,6 @@ typedef double   r64;
 typedef u32      b32;
 
 #define ASSERT(expression) if(!(expression)) *(u8 *)0 = 0;
-
-void debugLog(const char *format, ...) {
-    va_list argptr;
-    va_start(argptr, format);
-    char str[1024];
-    vsprintf_s(str, sizeof(str), format, argptr);
-    va_end(argptr);
-    OutputDebugString(str);
-}
 
 #define TARGET_FPS 60.0f
 #define MAX_DT     (1.0f / TARGET_FPS)
@@ -91,7 +84,7 @@ void readFile(const char *path, u8 **content, u32 *size) {
     ASSERT(success);
 
     *size = fileSize.LowPart;
-    *content = (u8 *) malloc(*size);
+    *content = (u8 *)malloc(*size);
 
     DWORD numBytesRead;
     success = ReadFile(fileHandle, *content, *size, &numBytesRead, NULL);
@@ -103,7 +96,7 @@ void readFile(const char *path, u8 **content, u32 *size) {
 }
 
 Chip8* chip8Create(char *programPath) {
-    Chip8 *chip8 = (Chip8 *) calloc(sizeof(Chip8), 1);
+    Chip8 *chip8 = (Chip8 *)calloc(sizeof(Chip8), 1);
 
     // load font data into memory
     u8 *p = chip8->mem;
@@ -447,7 +440,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     wndClass.lpszClassName = "CHIP-8";
     RegisterClass(&wndClass);
 
-    Backbuffer *bb = (Backbuffer *) calloc(sizeof(Backbuffer), 1);
+    Backbuffer *bb = (Backbuffer *)calloc(sizeof(Backbuffer), 1);
 
     u32 windowScale = 14;
     bb->windowWidth = SCREEN_WIDTH * windowScale;
@@ -468,7 +461,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
 
     bb->deviceContext = GetDC(wnd);
 
-    bb->bitmapInfo = (BITMAPINFO *) calloc(sizeof(BITMAPINFOHEADER), 1);
+    bb->bitmapInfo = (BITMAPINFO *)calloc(sizeof(BITMAPINFOHEADER), 1);
     bb->bitmapInfo->bmiHeader.biSize = sizeof(bb->bitmapInfo->bmiHeader);
     bb->bitmapInfo->bmiHeader.biWidth = SCREEN_WIDTH;
     bb->bitmapInfo->bmiHeader.biHeight = -SCREEN_HEIGHT;
@@ -487,6 +480,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     Chip8 *chip8 = chip8Create(cmdLine);
     b32 keys[CHIP8_NUM_KEYS] = { 0 };
     r32 cycleTimer = CYCLE_INTERVAL;
+    u8 prevSoundTimer = 0;
 
     b32 running = TRUE;
 
@@ -543,9 +537,18 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
             chip8DoCycle(chip8, keys);
         }
 
+        if (prevSoundTimer == 0 && chip8->soundTimer > 0) {
+            sound_start();
+        }
+        else if (prevSoundTimer > 0 && chip8->soundTimer == 0) {
+            sound_stop();
+        }
+
+        prevSoundTimer = chip8->soundTimer;
+
         for (u32 row = 0; row < SCREEN_HEIGHT; ++row)
             for (u32 col = 0; col < SCREEN_WIDTH; ++col)
-                bb->mem[row*SCREEN_WIDTH+ col] = screen[row][col] ? 0xffffffff : 0xff000000;
+                bb->mem[row*SCREEN_WIDTH + col] = screen[row][col] ? 0xffffffff : 0xff000000;
         displayBackbuffer(bb);
     }
 }
