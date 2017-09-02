@@ -9,6 +9,7 @@
 
 #define CHIP8_SCREEN_WIDTH  64
 #define CHIP8_SCREEN_HEIGHT 32
+#define CHIP8_ASPECT_RATIO ((float)CHIP8_SCREEN_WIDTH / CHIP8_SCREEN_HEIGHT)
 #define CHIP8_NUM_KEYS 16
 
 void chip8_init(const uint8_t *program, uint32_t program_size);

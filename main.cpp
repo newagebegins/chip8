@@ -46,6 +46,17 @@ LRESULT CALLBACK wnd_proc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
         case WM_DESTROY:
             PostQuitMessage(0);
             break;
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(wnd, &ps);
+
+            // All painting occurs here, between BeginPaint and EndPaint.
+
+            FillRect(hdc, &ps.rcPaint, (HBRUSH)GetStockObject(GRAY_BRUSH));
+
+            EndPaint(wnd, &ps);
+            break;
+        }
         default:
             return DefWindowProc(wnd, msg, wparam, lparam);
     }
@@ -177,8 +188,29 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
                 for (uint32_t col = 0; col < CHIP8_SCREEN_WIDTH; ++col)
                     backbuffer[row*CHIP8_SCREEN_WIDTH + col] = screen[row][col] ? 0xffffffff : 0xff000000;
 
+            RECT client_rect;
+            GetClientRect(wnd, &client_rect);
+            window_width = client_rect.right;
+            window_height = client_rect.bottom;
+            float window_aspect = (float)window_width / window_height;
+
+            int x, y, w, h;
+
+            if (window_aspect < CHIP8_ASPECT_RATIO) {
+                x = 0;
+                w = window_width;
+                h = window_width / CHIP8_ASPECT_RATIO;
+                y = (window_height - h) / 2;
+            }
+            else {
+                y = 0;
+                h = window_height;
+                w = window_height * CHIP8_ASPECT_RATIO;
+                x = (window_width - w) / 2;
+            }
+
             StretchDIBits(hdc,
-                0, 0, window_width, window_height,
+                x, y, w, h,
                 0, 0, CHIP8_SCREEN_WIDTH, CHIP8_SCREEN_HEIGHT,
                 backbuffer, &bmp_info,
                 DIB_RGB_COLORS, SRCCOPY);
