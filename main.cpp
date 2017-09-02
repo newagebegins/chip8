@@ -72,7 +72,7 @@ LRESULT CALLBACK wnd_proc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
         case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(wnd, &ps);
-            FillRect(hdc, &ps.rcPaint, (HBRUSH)GetStockObject(GRAY_BRUSH));
+            FillRect(hdc, &ps.rcPaint, (HBRUSH)GetStockObject(DKGRAY_BRUSH));
             StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
             EndPaint(wnd, &ps);
             break;
