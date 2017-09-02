@@ -15,11 +15,11 @@ void debug_log(const char *format, ...) {
     OutputDebugString(str);
 }
 
-void read_file(const char *path, uint8_t **content, uint32_t *size) {
+bool read_file(const char *path, uint8_t **content, uint32_t *size) {
     BOOL success;
 
     HANDLE fileHandle = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    assert(fileHandle != INVALID_HANDLE_VALUE);
+    if (fileHandle == INVALID_HANDLE_VALUE) return false;
 
     LARGE_INTEGER fileSize;
     success = GetFileSizeEx(fileHandle, &fileSize);
@@ -35,6 +35,8 @@ void read_file(const char *path, uint8_t **content, uint32_t *size) {
 
     success = CloseHandle(fileHandle);
     assert(success);
+    
+    return true;
 }
 
 #define BACKBUFFER_BYTES (CHIP8_SCR_W * CHIP8_SCR_H * sizeof(uint32_t))
@@ -149,7 +151,12 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
     {
         uint8_t *program = NULL;
         uint32_t program_size = 0;
-        read_file("../data/CHIP8/GAMES/PONG2", &program, &program_size);
+        if (!read_file(cmd_line, &program, &program_size)) {
+            char str[128];
+            sprintf(str, "Unable to read program %s", cmd_line);
+            MessageBox(wnd, str, "Error", MB_OK);
+            return 0;
+        }
         chip8_init(program, program_size);
         free(program);
     }
@@ -185,4 +192,6 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
         StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
         Sleep(CHIP8_CYCLE_INTERVAL * 1000);
     }
+
+    return 0;
 }
