@@ -110,38 +110,30 @@ void chip8_do_cycle(uint8_t screen[CHIP8_SCREEN_HEIGHT][CHIP8_SCREEN_WIDTH], con
             break;
         }
         case 0x8: {
+            uint8_t x = M[PC] & 0xF;
+            uint8_t y = M[PC + 1] >> 4;
             switch (M[PC + 1] & 0xF) {
                 case 0x0: {
-                    uint8_t x = M[PC] & 0xF;
-                    uint8_t y = M[PC + 1] >> 4;
                     V[x] = V[y];
                     PC += 2;
                     break;
                 }
                 case 0x1: {
-                    uint8_t x = M[PC] & 0xF;
-                    uint8_t y = M[PC + 1] >> 4;
                     V[x] = V[x] | V[y];
                     PC += 2;
                     break;
                 }
                 case 0x2: {
-                    uint8_t x = M[PC] & 0xF;
-                    uint8_t y = M[PC + 1] >> 4;
                     V[x] = V[x] & V[y];
                     PC += 2;
                     break;
                 }
                 case 0x3: {
-                    uint8_t x = M[PC] & 0xF;
-                    uint8_t y = M[PC + 1] >> 4;
                     V[x] = V[x] ^ V[y];
                     PC += 2;
                     break;
                 }
                 case 0x4: {
-                    uint8_t x = M[PC] & 0xF;
-                    uint8_t y = M[PC + 1] >> 4;
                     uint32_t result = V[x] + V[y];
                     if (result > 0xFF) V[0xF] = 1;
                     V[x] = result & 0xFF;
@@ -149,30 +141,24 @@ void chip8_do_cycle(uint8_t screen[CHIP8_SCREEN_HEIGHT][CHIP8_SCREEN_WIDTH], con
                     break;
                 }
                 case 0x5: {
-                    uint8_t x = M[PC] & 0xF;
-                    uint8_t y = M[PC + 1] >> 4;
                     V[0xF] = V[x] > V[y];
                     V[x] = V[x] - V[y];
                     PC += 2;
                     break;
                 }
                 case 0x6: {
-                    uint8_t x = M[PC] & 0xF;
                     V[0xF] = V[x] & 0x1;
                     V[x] >>= 1;
                     PC += 2;
                     break;
                 }
                 case 0x7: {
-                    uint8_t x = M[PC] & 0xF;
-                    uint8_t y = M[PC + 1] >> 4;
                     V[0xF] = V[y] > V[x];
                     V[x] = V[y] - V[x];
                     PC += 2;
                     break;
                 }
                 case 0xe: {
-                    uint8_t x = M[PC] & 0xF;
                     V[0xF] = V[x] & 0x80;
                     V[x] <<= 1;
                     PC += 2;
