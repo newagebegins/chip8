@@ -8,7 +8,7 @@
 #define PROGRAM_OFFSET 512
 #define NUM_REGISTERS 16
 #define STACK_SIZE 16
-#define SCREEN_BYTES (CHIP8_SCREEN_HEIGHT * CHIP8_SCREEN_WIDTH)
+#define SCREEN_BYTES (CHIP8_SCR_H * CHIP8_SCR_W)
 #define FONT_HEIGHT 5
 
 static uint8_t M[MEMORY_SIZE] = {
@@ -44,7 +44,7 @@ void chip8_init(const uint8_t *program, uint32_t program_size) {
     cycle_counter = CHIP8_CYCLES_PER_TIMER;
 }
 
-void chip8_do_cycle(uint8_t screen[CHIP8_SCREEN_HEIGHT][CHIP8_SCREEN_WIDTH], const bool keys[CHIP8_NUM_KEYS]) {
+void chip8_do_cycle(uint8_t screen[CHIP8_SCR_H][CHIP8_SCR_W], const bool keys[CHIP8_NUM_KEYS]) {
     switch (M[PC] >> 4) {
         case 0x0: {
             assert(M[PC] == 0);
@@ -198,11 +198,11 @@ void chip8_do_cycle(uint8_t screen[CHIP8_SCREEN_HEIGHT][CHIP8_SCREEN_WIDTH], con
             uint8_t collision = 0;
             for (uint8_t row = 0; row < height; ++row) {
                 uint8_t curY = V[yReg] + row;
-                if (curY >= CHIP8_SCREEN_HEIGHT) break;
+                if (curY >= CHIP8_SCR_H) break;
                 uint8_t spriteRow = M[I + row];
                 for (uint8_t col = 0; col < 8; ++col) {
                     uint8_t curX = V[xReg] + col;
-                    if (curX >= CHIP8_SCREEN_WIDTH) break;
+                    if (curX >= CHIP8_SCR_W) break;
                     uint8_t spriteBit = (spriteRow >> (7 - col)) & 1;
                     if (collision == 0) collision = screen[curY][curX] & spriteBit;
                     screen[curY][curX] ^= spriteBit;

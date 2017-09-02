@@ -17,7 +17,7 @@ void debug_log(const char *format, ...) {
 
 #define TARGET_FPS 60.0f
 #define MAX_DT (1.0f / TARGET_FPS)
-#define BACKBUFFER_BYTES (CHIP8_SCREEN_WIDTH * CHIP8_SCREEN_HEIGHT * sizeof(uint32_t))
+#define BACKBUFFER_BYTES (CHIP8_SCR_W * CHIP8_SCR_H * sizeof(uint32_t))
 
 void read_file(const char *path, uint8_t **content, uint32_t *size) {
     BOOL success;
@@ -41,19 +41,39 @@ void read_file(const char *path, uint8_t **content, uint32_t *size) {
     assert(success);
 }
 
+static int window_width, window_height;
+static int dst_x, dst_y, dst_w, dst_h;
+static uint32_t backbuffer[BACKBUFFER_BYTES];
+static BITMAPINFO bmp_info;
+
 LRESULT CALLBACK wnd_proc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     switch (msg) {
         case WM_DESTROY:
             PostQuitMessage(0);
             break;
+        case WM_SIZE: {
+            window_width = LOWORD(lparam);
+            window_height = HIWORD(lparam);
+            const float window_aspect = (float)window_width / window_height;
+            if (window_aspect < CHIP8_ASPECT) {
+                dst_x = 0;
+                dst_w = window_width;
+                dst_h = window_width / CHIP8_ASPECT;
+                dst_y = (window_height - dst_h) / 2;
+            }
+            else {
+                dst_y = 0;
+                dst_h = window_height;
+                dst_w = window_height * CHIP8_ASPECT;
+                dst_x = (window_width - dst_w) / 2;
+            }
+            break;
+        }
         case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(wnd, &ps);
-
-            // All painting occurs here, between BeginPaint and EndPaint.
-
             FillRect(hdc, &ps.rcPaint, (HBRUSH)GetStockObject(GRAY_BRUSH));
-
+            StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
             EndPaint(wnd, &ps);
             break;
         }
@@ -72,9 +92,9 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
     wnd_class.lpszClassName = "CHIP-8";
     RegisterClass(&wnd_class);
 
-    int window_scale = 14;
-    int window_width = CHIP8_SCREEN_WIDTH * window_scale;
-    int window_height = CHIP8_SCREEN_HEIGHT * window_scale;
+    const int window_scale = 14;
+    window_width = CHIP8_SCR_W * window_scale;
+    window_height = CHIP8_SCR_H * window_scale;
 
     RECT crect = { 0 };
     crect.right = window_width;
@@ -90,12 +110,10 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
     UpdateWindow(wnd);
 
     HDC hdc = GetDC(wnd);
-    static uint32_t backbuffer[BACKBUFFER_BYTES];
 
-    BITMAPINFO bmp_info = { 0 };
     bmp_info.bmiHeader.biSize = sizeof(bmp_info.bmiHeader);
-    bmp_info.bmiHeader.biWidth = CHIP8_SCREEN_WIDTH;
-    bmp_info.bmiHeader.biHeight = -CHIP8_SCREEN_HEIGHT;
+    bmp_info.bmiHeader.biWidth = CHIP8_SCR_W;
+    bmp_info.bmiHeader.biHeight = -CHIP8_SCR_H;
     bmp_info.bmiHeader.biPlanes = 1;
     bmp_info.bmiHeader.biBitCount = 32;
     bmp_info.bmiHeader.biCompression = BI_RGB;
@@ -121,7 +139,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
     uint8_t prev_sound_timer = 0;
 
     bool running = true;
-    static uint8_t screen[CHIP8_SCREEN_HEIGHT][CHIP8_SCREEN_WIDTH];
+    static uint8_t screen[CHIP8_SCR_H][CHIP8_SCR_W];
 
     while (running) {
         perfc_prev = perfc;
@@ -184,36 +202,11 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
             sound_update();
             prev_sound_timer = sound_timer;
 
-            for (uint32_t row = 0; row < CHIP8_SCREEN_HEIGHT; ++row)
-                for (uint32_t col = 0; col < CHIP8_SCREEN_WIDTH; ++col)
-                    backbuffer[row*CHIP8_SCREEN_WIDTH + col] = screen[row][col] ? 0xffffffff : 0xff000000;
+            for (uint32_t row = 0; row < CHIP8_SCR_H; ++row)
+                for (uint32_t col = 0; col < CHIP8_SCR_W; ++col)
+                    backbuffer[row*CHIP8_SCR_W + col] = screen[row][col] ? 0xffffffff : 0xff000000;
 
-            RECT client_rect;
-            GetClientRect(wnd, &client_rect);
-            window_width = client_rect.right;
-            window_height = client_rect.bottom;
-            float window_aspect = (float)window_width / window_height;
-
-            int x, y, w, h;
-
-            if (window_aspect < CHIP8_ASPECT_RATIO) {
-                x = 0;
-                w = window_width;
-                h = window_width / CHIP8_ASPECT_RATIO;
-                y = (window_height - h) / 2;
-            }
-            else {
-                y = 0;
-                h = window_height;
-                w = window_height * CHIP8_ASPECT_RATIO;
-                x = (window_width - w) / 2;
-            }
-
-            StretchDIBits(hdc,
-                x, y, w, h,
-                0, 0, CHIP8_SCREEN_WIDTH, CHIP8_SCREEN_HEIGHT,
-                backbuffer, &bmp_info,
-                DIB_RGB_COLORS, SRCCOPY);
+            StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
         }
     }
 }
