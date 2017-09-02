@@ -19,14 +19,6 @@ void debug_log(const char *format, ...) {
 #define MAX_DT (1.0f / TARGET_FPS)
 #define BACKBUFFER_BYTES (CHIP8_SCREEN_WIDTH * CHIP8_SCREEN_HEIGHT * sizeof(uint32_t))
 
-struct Backbuffer {
-    uint32_t mem[BACKBUFFER_BYTES];
-    HDC deviceContext;
-    uint32_t windowWidth;
-    uint32_t windowHeight;
-    BITMAPINFO *bitmapInfo;
-};
-
 void read_file(const char *path, uint8_t **content, uint32_t *size) {
     BOOL success;
 
@@ -49,7 +41,7 @@ void read_file(const char *path, uint8_t **content, uint32_t *size) {
     assert(success);
 }
 
-LRESULT CALLBACK wndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+LRESULT CALLBACK wnd_proc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     switch (msg) {
         case WM_DESTROY:
             PostQuitMessage(0);
@@ -60,71 +52,70 @@ LRESULT CALLBACK wndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     return 0;
 }
 
-int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdShow) {
-    WNDCLASS wndClass = { 0 };
-    wndClass.style = CS_HREDRAW | CS_VREDRAW;
-    wndClass.lpfnWndProc = wndProc;
-    wndClass.hInstance = inst;
-    wndClass.hCursor = LoadCursor(0, IDC_ARROW);
-    wndClass.lpszClassName = "CHIP-8";
-    RegisterClass(&wndClass);
+int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cmd_show) {
+    WNDCLASS wnd_class = { 0 };
+    wnd_class.style = CS_HREDRAW | CS_VREDRAW;
+    wnd_class.lpfnWndProc = wnd_proc;
+    wnd_class.hInstance = inst;
+    wnd_class.hCursor = LoadCursor(0, IDC_ARROW);
+    wnd_class.lpszClassName = "CHIP-8";
+    RegisterClass(&wnd_class);
 
-    Backbuffer *bb = (Backbuffer *)calloc(sizeof(Backbuffer), 1);
-
-    uint32_t windowScale = 14;
-    bb->windowWidth = CHIP8_SCREEN_WIDTH * windowScale;
-    bb->windowHeight = CHIP8_SCREEN_HEIGHT * windowScale;
+    int window_scale = 14;
+    int window_width = CHIP8_SCREEN_WIDTH * window_scale;
+    int window_height = CHIP8_SCREEN_HEIGHT * window_scale;
 
     RECT crect = { 0 };
-    crect.right = bb->windowWidth;
-    crect.bottom = bb->windowHeight;
+    crect.right = window_width;
+    crect.bottom = window_height;
 
-    DWORD wndStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-    AdjustWindowRect(&crect, wndStyle, 0);
+    DWORD wnd_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    AdjustWindowRect(&crect, wnd_style, 0);
 
-    HWND wnd = CreateWindowEx(0, wndClass.lpszClassName, "CHIP-8", wndStyle, 0, 0,
+    HWND wnd = CreateWindowEx(0, wnd_class.lpszClassName, "CHIP-8", wnd_style, 0, 0,
         crect.right - crect.left, crect.bottom - crect.top,
         0, 0, inst, 0);
-    ShowWindow(wnd, cmdShow);
+    ShowWindow(wnd, cmd_show);
     UpdateWindow(wnd);
 
-    bb->deviceContext = GetDC(wnd);
+    HDC hdc = GetDC(wnd);
+    static uint32_t backbuffer[BACKBUFFER_BYTES];
 
-    bb->bitmapInfo = (BITMAPINFO *)calloc(sizeof(BITMAPINFOHEADER), 1);
-    bb->bitmapInfo->bmiHeader.biSize = sizeof(bb->bitmapInfo->bmiHeader);
-    bb->bitmapInfo->bmiHeader.biWidth = CHIP8_SCREEN_WIDTH;
-    bb->bitmapInfo->bmiHeader.biHeight = -CHIP8_SCREEN_HEIGHT;
-    bb->bitmapInfo->bmiHeader.biPlanes = 1;
-    bb->bitmapInfo->bmiHeader.biBitCount = 32;
-    bb->bitmapInfo->bmiHeader.biCompression = BI_RGB;
+    BITMAPINFO bmp_info = { 0 };
+    bmp_info.bmiHeader.biSize = sizeof(bmp_info.bmiHeader);
+    bmp_info.bmiHeader.biWidth = CHIP8_SCREEN_WIDTH;
+    bmp_info.bmiHeader.biHeight = -CHIP8_SCREEN_HEIGHT;
+    bmp_info.bmiHeader.biPlanes = 1;
+    bmp_info.bmiHeader.biBitCount = 32;
+    bmp_info.bmiHeader.biCompression = BI_RGB;
 
     sound_init();
 
     float dt = 0.0f;
-    LARGE_INTEGER perfcFreq = { 0 };
+    LARGE_INTEGER perfc_freq = { 0 };
     LARGE_INTEGER perfc = { 0 };
-    LARGE_INTEGER perfcPrev = { 0 };
+    LARGE_INTEGER perfc_prev = { 0 };
 
-    QueryPerformanceFrequency(&perfcFreq);
+    QueryPerformanceFrequency(&perfc_freq);
     QueryPerformanceCounter(&perfc);
 
-    uint8_t *fileContent = NULL;
-    uint32_t fileSize = 0;
-    read_file("../data/CHIP8/GAMES/PONG2", &fileContent, &fileSize);
-    chip8_init(fileContent, fileSize);
-    free(fileContent);
+    uint8_t *program = NULL;
+    uint32_t program_size = 0;
+    read_file("../data/CHIP8/GAMES/PONG2", &program, &program_size);
+    chip8_init(program, program_size);
+    free(program);
 
     bool keys[CHIP8_NUM_KEYS] = { 0 };
-    float cycleTimer = CHIP8_CYCLE_INTERVAL;
+    float cycle_timer = CHIP8_CYCLE_INTERVAL;
     uint8_t prev_sound_timer = 0;
 
     bool running = true;
     static uint8_t screen[CHIP8_SCREEN_HEIGHT][CHIP8_SCREEN_WIDTH];
 
     while (running) {
-        perfcPrev = perfc;
+        perfc_prev = perfc;
         QueryPerformanceCounter(&perfc);
-        dt = (float)(perfc.QuadPart - perfcPrev.QuadPart) / (float)perfcFreq.QuadPart;
+        dt = (float)(perfc.QuadPart - perfc_prev.QuadPart) / (float)perfc_freq.QuadPart;
         if (dt > MAX_DT) dt = MAX_DT;
 
         MSG msg;
@@ -136,27 +127,27 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
 
                 case WM_KEYDOWN:
                 case WM_KEYUP: {
-                    bool isDown = ((msg.lParam & (1 << 31)) == 0);
-                    //debugLog("key %x, is down %x\n", msg.wParam, isDown);
+                    bool is_down = ((msg.lParam & (1 << 31)) == 0);
+                    //debug_log("key %x, is down %x\n", msg.wParam, is_down);
                     switch (msg.wParam) {
                         case VK_ESCAPE: running = false; break;
 
-                        case VK_DECIMAL:  keys[0x0] = isDown; break;
-                        case VK_NUMPAD7:  keys[0x1] = isDown; break;
-                        case VK_NUMPAD8:  keys[0x2] = isDown; break;
-                        case VK_NUMPAD9:  keys[0x3] = isDown; break;
-                        case VK_NUMPAD4:  keys[0x4] = isDown; break;
-                        case VK_NUMPAD5:  keys[0x5] = isDown; break;
-                        case VK_NUMPAD6:  keys[0x6] = isDown; break;
-                        case VK_NUMPAD1:  keys[0x7] = isDown; break;
-                        case VK_NUMPAD2:  keys[0x8] = isDown; break;
-                        case VK_NUMPAD3:  keys[0x9] = isDown; break;
-                        case VK_NUMPAD0:  keys[0xa] = isDown; break;
-                        case VK_RETURN:   keys[0xb] = isDown; break;
-                        case VK_DIVIDE:   keys[0xc] = isDown; break;
-                        case VK_MULTIPLY: keys[0xd] = isDown; break;
-                        case VK_SUBTRACT: keys[0xe] = isDown; break;
-                        case VK_ADD:      keys[0xf] = isDown; break;
+                        case VK_DECIMAL:  keys[0x0] = is_down; break;
+                        case VK_NUMPAD7:  keys[0x1] = is_down; break;
+                        case VK_NUMPAD8:  keys[0x2] = is_down; break;
+                        case VK_NUMPAD9:  keys[0x3] = is_down; break;
+                        case VK_NUMPAD4:  keys[0x4] = is_down; break;
+                        case VK_NUMPAD5:  keys[0x5] = is_down; break;
+                        case VK_NUMPAD6:  keys[0x6] = is_down; break;
+                        case VK_NUMPAD1:  keys[0x7] = is_down; break;
+                        case VK_NUMPAD2:  keys[0x8] = is_down; break;
+                        case VK_NUMPAD3:  keys[0x9] = is_down; break;
+                        case VK_NUMPAD0:  keys[0xa] = is_down; break;
+                        case VK_RETURN:   keys[0xb] = is_down; break;
+                        case VK_DIVIDE:   keys[0xc] = is_down; break;
+                        case VK_MULTIPLY: keys[0xd] = is_down; break;
+                        case VK_SUBTRACT: keys[0xe] = is_down; break;
+                        case VK_ADD:      keys[0xf] = is_down; break;
                     }
                     break;
                 }
@@ -168,9 +159,9 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
             }
         }
 
-        cycleTimer -= dt;
-        if (cycleTimer <= 0) {
-            cycleTimer += CHIP8_CYCLE_INTERVAL;
+        cycle_timer -= dt;
+        if (cycle_timer <= 0) {
+            cycle_timer += CHIP8_CYCLE_INTERVAL;
             chip8_do_cycle(screen, keys);
         }
 
@@ -185,12 +176,12 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
 
         for (uint32_t row = 0; row < CHIP8_SCREEN_HEIGHT; ++row)
             for (uint32_t col = 0; col < CHIP8_SCREEN_WIDTH; ++col)
-                bb->mem[row*CHIP8_SCREEN_WIDTH + col] = screen[row][col] ? 0xffffffff : 0xff000000;
+                backbuffer[row*CHIP8_SCREEN_WIDTH + col] = screen[row][col] ? 0xffffffff : 0xff000000;
         
-        StretchDIBits(bb->deviceContext,
-            0, 0, bb->windowWidth, bb->windowHeight,
+        StretchDIBits(hdc,
+            0, 0, window_width, window_height,
             0, 0, CHIP8_SCREEN_WIDTH, CHIP8_SCREEN_HEIGHT,
-            bb->mem, bb->bitmapInfo,
+            backbuffer, &bmp_info,
             DIB_RGB_COLORS, SRCCOPY);
     }
 }
