@@ -299,6 +299,15 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
       }
       break;
     }
+    case 0x5: {
+      u8 x = chip8->mem[chip8->PC] & 0xF;
+      u8 y = chip8->mem[chip8->PC + 1] >> 4;
+      chip8->PC += 2;
+      if (chip8->V[x] == chip8->V[y]) {
+        chip8->PC += 2;
+      }
+      break;
+    }
     case 0x6: {
       u8 reg = chip8->mem[chip8->PC] & 0xF;
       u8 val = chip8->mem[chip8->PC + 1];
@@ -364,6 +373,14 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
           u8 x = chip8->mem[chip8->PC] & 0xF;
           chip8->V[0xF] = chip8->V[x] & 0x1;
           chip8->V[x] >>= 1;
+          chip8->PC += 2;
+          break;
+        }
+        case 0x7: {
+          u8 x = chip8->mem[chip8->PC] & 0xF;
+          u8 y = chip8->mem[chip8->PC + 1] >> 4;
+          chip8->V[0xF] = chip8->V[y] > chip8->V[x];
+          chip8->V[x] = chip8->V[y] - chip8->V[x];
           chip8->PC += 2;
           break;
         }
@@ -558,8 +575,6 @@ LRESULT CALLBACK wndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 }
 
 int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdShow) {
-  UNREFERENCED_PARAMETER(prevInst);
-
   WNDCLASS wndClass = { 0 };
   wndClass.style = CS_HREDRAW | CS_VREDRAW;
   wndClass.lpfnWndProc = wndProc;
@@ -607,7 +622,34 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
   QueryPerformanceFrequency(&perfcFreq);
   QueryPerformanceCounter(&perfc);
 
-  Chip8 *chip8 = chip8Create(cmdLine);
+  //Chip8 *chip8 = chip8Create(cmdLine);
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PONG");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/15PUZZLE");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BLINKY");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BLITZ");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BREAKOUT");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BRIX");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/CONNECT4");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/GUESS");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/HIDDEN");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/KALEID");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/MAZE");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/MERLIN");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/MISSILE");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PONG");
+  Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PONG2");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PUZZLE");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/SQUASH");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/SYZYGY");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/TANK");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/TETRIS");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/TICTAC");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/UFO");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/VBRIX");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/VERS");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/WALL");
+  //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/WIPEOFF");
   b32 keys[CHIP8_NUM_KEYS] = { 0 };
   r32 cycleTimer = CYCLE_INTERVAL;
 
