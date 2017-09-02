@@ -207,6 +207,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
                     backbuffer[row*CHIP8_SCR_W + col] = screen[row][col] ? 0xffffffff : 0xff000000;
 
             StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
+            Sleep(CHIP8_CYCLE_INTERVAL * 1000);
         }
     }
 }
