@@ -98,10 +98,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="chip8.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="sound.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="chip8.h" />
     <ClInclude Include="sound.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

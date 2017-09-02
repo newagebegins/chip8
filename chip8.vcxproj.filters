@@ -21,9 +21,15 @@
     <ClCompile Include="sound.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="chip8.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="sound.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="chip8.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -60,20 +60,16 @@ struct Backbuffer {
     BITMAPINFO *bitmapInfo;
 };
 
-struct Chip8 {
-    u8  mem[CHIP8_MEMORY_SIZE];
-    u16 PC;                      // program counter
-    u8  V[CHIP8_NUM_REGISTERS];  // registers
-    u16 I;
-    u8  delayTimer;
-    u8  soundTimer;
-    u8  prevSoundTimer;
-
-    u16 stack[CHIP8_STACK_SIZE];
-    u8  SP;                      // stack pointer
-
-    u32 cycleCounter;
-};
+static u8 mem[CHIP8_MEMORY_SIZE];
+static u16 PC; // program counter
+static u8 V[CHIP8_NUM_REGISTERS]; // registers
+static u16 I;
+static u8 delayTimer;
+static u8 soundTimer;
+static u8 prevSoundTimer;
+static u16 stack[CHIP8_STACK_SIZE];
+static u8 SP; // stack pointer
+static u32 cycleCounter;
 
 void displayBackbuffer(Backbuffer *bb) {
     StretchDIBits(bb->deviceContext,
@@ -105,11 +101,9 @@ void readFile(const char *path, u8 **content, u32 *size) {
     ASSERT(success);
 }
 
-Chip8* chip8Create(char *programPath) {
-    Chip8 *chip8 = (Chip8 *)calloc(sizeof(Chip8), 1);
-
+void chip8_init(const u8 *program, u32 program_size) {
     // load font data into memory
-    u8 *p = chip8->mem;
+    u8 *p = mem;
     *(p++) = 0xF0; *(p++) = 0x90; *(p++) = 0x90; *(p++) = 0x90; *(p++) = 0xF0; // 0
     *(p++) = 0x20; *(p++) = 0x60; *(p++) = 0x20; *(p++) = 0x20; *(p++) = 0x70; // 1
     *(p++) = 0xF0; *(p++) = 0x10; *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0xF0; // 2
@@ -127,31 +121,25 @@ Chip8* chip8Create(char *programPath) {
     *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0xF0; // E
     *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0xF0; *(p++) = 0x80; *(p++) = 0x80; // F
 
-    u8 *fileContent = NULL;
-    u32 fileSize = 0;
-    readFile(programPath, &fileContent, &fileSize);
-    memcpy(chip8->mem + CHIP8_PROGRAM_OFFSET, fileContent, fileSize);
-    free(fileContent);
+    memcpy(mem + CHIP8_PROGRAM_OFFSET, program, program_size);
 
-    chip8->PC = CHIP8_PROGRAM_OFFSET;
-    chip8->cycleCounter = CYCLES_PER_TIMER;
-
-    return chip8;
+    PC = CHIP8_PROGRAM_OFFSET;
+    cycleCounter = CYCLES_PER_TIMER;
 }
 
-void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
-    switch (chip8->mem[chip8->PC] >> 4) {
+void chip8_do_cycle(const b32 *keys) {
+    switch (mem[PC] >> 4) {
         case 0x0: {
-            ASSERT(chip8->mem[chip8->PC] == 0);
-            switch (chip8->mem[chip8->PC + 1]) {
+            ASSERT(mem[PC] == 0);
+            switch (mem[PC + 1]) {
                 case 0xe0: {
                     memset(screen, 0, SCREEN_BYTES);
-                    chip8->PC += 2;
+                    PC += 2;
                     break;
                 }
                 case 0xee: {
-                    ASSERT(chip8->SP > 0);
-                    chip8->PC = chip8->stack[--chip8->SP];
+                    ASSERT(SP > 0);
+                    PC = stack[--SP];
                     break;
                 }
                 default: ASSERT(!"Unknown instruction");
@@ -159,126 +147,126 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
             break;
         }
         case 0x1: {
-            u16 addr = ((chip8->mem[chip8->PC] & 0xF) << 8) | chip8->mem[chip8->PC + 1];
-            chip8->PC = addr;
+            u16 addr = ((mem[PC] & 0xF) << 8) | mem[PC + 1];
+            PC = addr;
             break;
         }
         case 0x2: {
-            u16 addr = ((chip8->mem[chip8->PC] & 0xF) << 8) | chip8->mem[chip8->PC + 1];
-            chip8->PC += 2;
-            ASSERT(chip8->SP < CHIP8_STACK_SIZE);
-            chip8->stack[chip8->SP++] = chip8->PC;
-            chip8->PC = addr;
+            u16 addr = ((mem[PC] & 0xF) << 8) | mem[PC + 1];
+            PC += 2;
+            ASSERT(SP < CHIP8_STACK_SIZE);
+            stack[SP++] = PC;
+            PC = addr;
             break;
         }
         case 0x3: {
-            u8 reg = chip8->mem[chip8->PC] & 0xF;
-            u8 n = chip8->mem[chip8->PC + 1];
-            chip8->PC += 2;
-            if (chip8->V[reg] == n) {
-                chip8->PC += 2;
+            u8 reg = mem[PC] & 0xF;
+            u8 n = mem[PC + 1];
+            PC += 2;
+            if (V[reg] == n) {
+                PC += 2;
             }
             break;
         }
         case 0x4: {
-            u8 reg = chip8->mem[chip8->PC] & 0xF;
-            u8 n = chip8->mem[chip8->PC + 1];
-            chip8->PC += 2;
-            if (chip8->V[reg] != n) {
-                chip8->PC += 2;
+            u8 reg = mem[PC] & 0xF;
+            u8 n = mem[PC + 1];
+            PC += 2;
+            if (V[reg] != n) {
+                PC += 2;
             }
             break;
         }
         case 0x5: {
-            u8 x = chip8->mem[chip8->PC] & 0xF;
-            u8 y = chip8->mem[chip8->PC + 1] >> 4;
-            chip8->PC += 2;
-            if (chip8->V[x] == chip8->V[y]) {
-                chip8->PC += 2;
+            u8 x = mem[PC] & 0xF;
+            u8 y = mem[PC + 1] >> 4;
+            PC += 2;
+            if (V[x] == V[y]) {
+                PC += 2;
             }
             break;
         }
         case 0x6: {
-            u8 reg = chip8->mem[chip8->PC] & 0xF;
-            u8 val = chip8->mem[chip8->PC + 1];
-            chip8->V[reg] = val;
-            chip8->PC += 2;
+            u8 reg = mem[PC] & 0xF;
+            u8 val = mem[PC + 1];
+            V[reg] = val;
+            PC += 2;
             break;
         }
         case 0x7: {
-            u8 reg = chip8->mem[chip8->PC] & 0xF;
-            u8 val = chip8->mem[chip8->PC + 1];
-            chip8->V[reg] += val;
-            chip8->PC += 2;
+            u8 reg = mem[PC] & 0xF;
+            u8 val = mem[PC + 1];
+            V[reg] += val;
+            PC += 2;
             break;
         }
         case 0x8: {
-            switch (chip8->mem[chip8->PC + 1] & 0xF) {
+            switch (mem[PC + 1] & 0xF) {
                 case 0x0: {
-                    u8 regX = chip8->mem[chip8->PC] & 0xF;
-                    u8 regY = chip8->mem[chip8->PC + 1] >> 4;
-                    chip8->V[regX] = chip8->V[regY];
-                    chip8->PC += 2;
+                    u8 regX = mem[PC] & 0xF;
+                    u8 regY = mem[PC + 1] >> 4;
+                    V[regX] = V[regY];
+                    PC += 2;
                     break;
                 }
                 case 0x1: {
-                    u8 regX = chip8->mem[chip8->PC] & 0xF;
-                    u8 regY = chip8->mem[chip8->PC + 1] >> 4;
-                    chip8->V[regX] = chip8->V[regX] | chip8->V[regY];
-                    chip8->PC += 2;
+                    u8 regX = mem[PC] & 0xF;
+                    u8 regY = mem[PC + 1] >> 4;
+                    V[regX] = V[regX] | V[regY];
+                    PC += 2;
                     break;
                 }
                 case 0x2: {
-                    u8 regX = chip8->mem[chip8->PC] & 0xF;
-                    u8 regY = chip8->mem[chip8->PC + 1] >> 4;
-                    chip8->V[regX] = chip8->V[regX] & chip8->V[regY];
-                    chip8->PC += 2;
+                    u8 regX = mem[PC] & 0xF;
+                    u8 regY = mem[PC + 1] >> 4;
+                    V[regX] = V[regX] & V[regY];
+                    PC += 2;
                     break;
                 }
                 case 0x3: {
-                    u8 regX = chip8->mem[chip8->PC] & 0xF;
-                    u8 regY = chip8->mem[chip8->PC + 1] >> 4;
-                    chip8->V[regX] = chip8->V[regX] ^ chip8->V[regY];
-                    chip8->PC += 2;
+                    u8 regX = mem[PC] & 0xF;
+                    u8 regY = mem[PC + 1] >> 4;
+                    V[regX] = V[regX] ^ V[regY];
+                    PC += 2;
                     break;
                 }
                 case 0x4: {
-                    u8 regX = chip8->mem[chip8->PC] & 0xF;
-                    u8 regY = chip8->mem[chip8->PC + 1] >> 4;
-                    u32 result = chip8->V[regX] + chip8->V[regY];
-                    if (result > 0xFF) chip8->V[0xF] = 1;
-                    chip8->V[regX] = result & 0xFF;
-                    chip8->PC += 2;
+                    u8 regX = mem[PC] & 0xF;
+                    u8 regY = mem[PC + 1] >> 4;
+                    u32 result = V[regX] + V[regY];
+                    if (result > 0xFF) V[0xF] = 1;
+                    V[regX] = result & 0xFF;
+                    PC += 2;
                     break;
                 }
                 case 0x5: {
-                    u8 regX = chip8->mem[chip8->PC] & 0xF;
-                    u8 regY = chip8->mem[chip8->PC + 1] >> 4;
-                    chip8->V[0xF] = chip8->V[regX] > chip8->V[regY];
-                    chip8->V[regX] = chip8->V[regX] - chip8->V[regY];
-                    chip8->PC += 2;
+                    u8 regX = mem[PC] & 0xF;
+                    u8 regY = mem[PC + 1] >> 4;
+                    V[0xF] = V[regX] > V[regY];
+                    V[regX] = V[regX] - V[regY];
+                    PC += 2;
                     break;
                 }
                 case 0x6: {
-                    u8 x = chip8->mem[chip8->PC] & 0xF;
-                    chip8->V[0xF] = chip8->V[x] & 0x1;
-                    chip8->V[x] >>= 1;
-                    chip8->PC += 2;
+                    u8 x = mem[PC] & 0xF;
+                    V[0xF] = V[x] & 0x1;
+                    V[x] >>= 1;
+                    PC += 2;
                     break;
                 }
                 case 0x7: {
-                    u8 x = chip8->mem[chip8->PC] & 0xF;
-                    u8 y = chip8->mem[chip8->PC + 1] >> 4;
-                    chip8->V[0xF] = chip8->V[y] > chip8->V[x];
-                    chip8->V[x] = chip8->V[y] - chip8->V[x];
-                    chip8->PC += 2;
+                    u8 x = mem[PC] & 0xF;
+                    u8 y = mem[PC + 1] >> 4;
+                    V[0xF] = V[y] > V[x];
+                    V[x] = V[y] - V[x];
+                    PC += 2;
                     break;
                 }
                 case 0xe: {
-                    u8 x = chip8->mem[chip8->PC] & 0xF;
-                    chip8->V[0xF] = chip8->V[x] & 0x80;
-                    chip8->V[x] <<= 1;
-                    chip8->PC += 2;
+                    u8 x = mem[PC] & 0xF;
+                    V[0xF] = V[x] & 0x80;
+                    V[x] <<= 1;
+                    PC += 2;
                     break;
                 }
                 default: ASSERT(!"Unknown instruction");
@@ -286,68 +274,68 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
             break;
         }
         case 0x9: {
-            u8 x = chip8->mem[chip8->PC] & 0xF;
-            u8 y = chip8->mem[chip8->PC + 1] >> 4;
-            chip8->PC += 2;
-            if (chip8->V[x] != chip8->V[y]) {
-                chip8->PC += 2;
+            u8 x = mem[PC] & 0xF;
+            u8 y = mem[PC + 1] >> 4;
+            PC += 2;
+            if (V[x] != V[y]) {
+                PC += 2;
             }
             break;
         }
         case 0xa: {
-            u16 addr = ((chip8->mem[chip8->PC] & 0xF) << 8) | chip8->mem[chip8->PC + 1];
-            chip8->I = addr;
-            chip8->PC += 2;
+            u16 addr = ((mem[PC] & 0xF) << 8) | mem[PC + 1];
+            I = addr;
+            PC += 2;
             break;
         }
         case 0xc: {
-            u8 reg = chip8->mem[chip8->PC] & 0xF;
-            u8 mask = chip8->mem[chip8->PC + 1];
+            u8 reg = mem[PC] & 0xF;
+            u8 mask = mem[PC + 1];
             u8 val = (rand() % 0x100) & mask;
-            chip8->V[reg] = val;
-            chip8->PC += 2;
+            V[reg] = val;
+            PC += 2;
             break;
         }
         case 0xd: {
-            u8 xReg = chip8->mem[chip8->PC] & 0xF;
-            u8 yReg = chip8->mem[chip8->PC + 1] >> 4;
-            u8 height = chip8->mem[chip8->PC + 1] & 0xF;
+            u8 xReg = mem[PC] & 0xF;
+            u8 yReg = mem[PC + 1] >> 4;
+            u8 height = mem[PC + 1] & 0xF;
             u8 collision = 0;
             for (u8 row = 0; row < height; ++row) {
-                u8 curY = chip8->V[yReg] + row;
+                u8 curY = V[yReg] + row;
                 if (curY >= SCREEN_HEIGHT) break;
-                u8 spriteRow = chip8->mem[chip8->I + row];
+                u8 spriteRow = mem[I + row];
                 for (u8 col = 0; col < 8; ++col) {
-                    u8 curX = chip8->V[xReg] + col;
+                    u8 curX = V[xReg] + col;
                     if (curX >= SCREEN_WIDTH) break;
                     u8 spriteBit = (spriteRow >> (7 - col)) & 1;
                     if (collision == 0) collision = screen[curY][curX] & spriteBit;
                     screen[curY][curX] ^= spriteBit;
                 }
             }
-            chip8->V[0xF] = collision;
-            chip8->PC += 2;
+            V[0xF] = collision;
+            PC += 2;
             break;
         }
         case 0xe: {
-            switch (chip8->mem[chip8->PC + 1]) {
+            switch (mem[PC + 1]) {
                 case 0x9e: {
-                    u8 reg = chip8->mem[chip8->PC] & 0xF;
-                    u8 key = chip8->V[reg];
+                    u8 reg = mem[PC] & 0xF;
+                    u8 key = V[reg];
                     ASSERT(key <= 0xF);
-                    chip8->PC += 2;
+                    PC += 2;
                     if (keys[key]) {
-                        chip8->PC += 2;
+                        PC += 2;
                     }
                     break;
                 }
                 case 0xa1: {
-                    u8 reg = chip8->mem[chip8->PC] & 0xF;
-                    u8 key = chip8->V[reg];
+                    u8 reg = mem[PC] & 0xF;
+                    u8 key = V[reg];
                     ASSERT(key <= 0xF);
-                    chip8->PC += 2;
+                    PC += 2;
                     if (!keys[key]) {
-                        chip8->PC += 2;
+                        PC += 2;
                     }
                     break;
                 }
@@ -356,78 +344,78 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
             break;
         }
         case 0xf: {
-            switch (chip8->mem[chip8->PC + 1]) {
+            switch (mem[PC + 1]) {
                 case 0x07: {
-                    u8 reg = chip8->mem[chip8->PC] & 0xF;
-                    chip8->V[reg] = chip8->delayTimer;
-                    chip8->PC += 2;
+                    u8 reg = mem[PC] & 0xF;
+                    V[reg] = delayTimer;
+                    PC += 2;
                     break;
                 }
                 case 0x0a: {
-                    u8 x = chip8->mem[chip8->PC] & 0xF;
+                    u8 x = mem[PC] & 0xF;
                     for (u8 key = 0; key < CHIP8_NUM_KEYS; ++key) {
                         if (keys[key]) {
-                            chip8->V[x] = key;
-                            chip8->PC += 2;
+                            V[x] = key;
+                            PC += 2;
                             break;
                         }
                     }
                     break;
                 }
                 case 0x15: {
-                    u8 reg = chip8->mem[chip8->PC] & 0xF;
-                    u8 val = chip8->V[reg];
-                    chip8->delayTimer = val;
-                    chip8->PC += 2;
+                    u8 reg = mem[PC] & 0xF;
+                    u8 val = V[reg];
+                    delayTimer = val;
+                    PC += 2;
                     break;
                 }
                 case 0x18: {
-                    u8 reg = chip8->mem[chip8->PC] & 0xF;
-                    u8 val = chip8->V[reg];
-                    chip8->soundTimer = val;
-                    chip8->PC += 2;
+                    u8 reg = mem[PC] & 0xF;
+                    u8 val = V[reg];
+                    soundTimer = val;
+                    PC += 2;
                     break;
                 }
                 case 0x1e: {
-                    u8 x = chip8->mem[chip8->PC] & 0xF;
-                    chip8->I += chip8->V[x];
-                    chip8->PC += 2;
+                    u8 x = mem[PC] & 0xF;
+                    I += V[x];
+                    PC += 2;
                     break;
                 }
                 case 0x29: {
-                    u8 reg = chip8->mem[chip8->PC] & 0xF;
-                    u8 val = chip8->V[reg];
+                    u8 reg = mem[PC] & 0xF;
+                    u8 val = V[reg];
                     ASSERT(val <= 0xF);
-                    chip8->I = 5 * val;
-                    chip8->PC += 2;
+                    I = 5 * val;
+                    PC += 2;
                     break;
                 }
                 case 0x33: {
-                    u8 reg = chip8->mem[chip8->PC] & 0xF;
-                    u8 val = chip8->V[reg];
+                    u8 reg = mem[PC] & 0xF;
+                    u8 val = V[reg];
                     u8 hundreds = val / 100;
                     u8 tens = (val % 100) / 10;
                     u8 ones = val % 10;
-                    chip8->mem[chip8->I + 0] = hundreds;
-                    chip8->mem[chip8->I + 1] = tens;
-                    chip8->mem[chip8->I + 2] = ones;
-                    chip8->PC += 2;
+                    mem[I + 0] = hundreds;
+                    mem[I + 1] = tens;
+                    mem[I + 2] = ones;
+                    PC += 2;
                     break;
                 }
                 case 0x55: {
-                    u8 endReg = chip8->mem[chip8->PC] & 0xF;
+                    u8 endReg = mem[PC] & 0xF;
                     for (u8 i = 0; i <= endReg; ++i) {
-                        chip8->mem[chip8->I + i] = chip8->V[i];
+                        mem[I + i] = V[i];
                     }
-                    chip8->PC += 2;
+                    PC += 2;
                     break;
                 }
                 case 0x65: {
-                    u8 endReg = chip8->mem[chip8->PC] & 0xF;
+                    u8 endReg = mem[PC] & 0xF;
                     for (u8 i = 0; i <= endReg; ++i) {
-                        chip8->V[i] = chip8->mem[chip8->I + i];
+                        V[i] = mem[I + i];
                     }
-                    chip8->PC += 2;
+                    PC += 2;
                     break;
                 }
                 default: ASSERT(!"Unknown instruction");
@@ -437,20 +425,20 @@ void chip8DoCycle(Chip8 *chip8, const b32 *keys) {
         default: ASSERT(!"Unknown instruction");
     }
 
-    chip8->cycleCounter--;
-    if (chip8->cycleCounter == 0) {
-        chip8->cycleCounter = CYCLES_PER_TIMER;
-        if (chip8->delayTimer > 0) chip8->delayTimer--;
-        if (chip8->soundTimer > 0) chip8->soundTimer--;
+    cycleCounter--;
+    if (cycleCounter == 0) {
+        cycleCounter = CYCLES_PER_TIMER;
+        if (delayTimer > 0) delayTimer--;
+        if (soundTimer > 0) soundTimer--;
 
-        if (chip8->prevSoundTimer == 0 && chip8->soundTimer > 0) {
+        if (prevSoundTimer == 0 && soundTimer > 0) {
             sound_start();
         }
-        else if (chip8->prevSoundTimer > 0 && chip8->soundTimer == 0) {
+        else if (prevSoundTimer > 0 && soundTimer == 0) {
             sound_stop();
         }
         sound_update();
-        chip8->prevSoundTimer = chip8->soundTimer;
+        prevSoundTimer = soundTimer;
     }
 }
 
@@ -513,34 +501,12 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
     QueryPerformanceFrequency(&perfcFreq);
     QueryPerformanceCounter(&perfc);
 
-    //Chip8 *chip8 = chip8Create(cmdLine);
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PONG");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/15PUZZLE");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BLINKY");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BLITZ");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BREAKOUT");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/BRIX");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/CONNECT4");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/GUESS");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/HIDDEN");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/INVADERS");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/KALEID");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/MAZE");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/MERLIN");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/MISSILE");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PONG");
-    Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PONG2");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/PUZZLE");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/SQUASH");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/SYZYGY");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/TANK");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/TETRIS");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/TICTAC");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/UFO");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/VBRIX");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/VERS");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/WALL");
-    //Chip8 *chip8 = chip8Create("../data/CHIP8/GAMES/WIPEOFF");
+    u8 *fileContent = NULL;
+    u32 fileSize = 0;
+    readFile("../data/CHIP8/GAMES/PONG2", &fileContent, &fileSize);
+    chip8_init(fileContent, fileSize);
+    free(fileContent);
+
     b32 keys[CHIP8_NUM_KEYS] = { 0 };
     r32 cycleTimer = CYCLE_INTERVAL;
 
@@ -596,7 +562,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
         cycleTimer -= dt;
         if (cycleTimer <= 0) {
             cycleTimer += CYCLE_INTERVAL;
-            chip8DoCycle(chip8, keys);
+            chip8_do_cycle(keys);
         }
 
         for (u32 row = 0; row < SCREEN_HEIGHT; ++row)
