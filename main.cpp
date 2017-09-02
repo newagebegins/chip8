@@ -128,16 +128,36 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
     crect.right = window_width;
     crect.bottom = window_height;
 
-    DWORD wnd_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    const DWORD wnd_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
     AdjustWindowRect(&crect, wnd_style, 0);
 
-    HWND wnd = CreateWindowEx(0, wnd_class.lpszClassName, "CHIP-8", wnd_style, 0, 0,
+    const HWND wnd = CreateWindowEx(0, wnd_class.lpszClassName, "CHIP-8", wnd_style, 0, 0,
         crect.right - crect.left, crect.bottom - crect.top,
         0, 0, inst, 0);
+
     ShowWindow(wnd, cmd_show);
     UpdateWindow(wnd);
 
-    HDC hdc = GetDC(wnd);
+    const char *program_path = cmd_line;
+    if (*program_path == 0) {
+        MessageBox(wnd, "Usage: chip8 path/to/program", "Error", MB_OK);
+        return 0;
+    }
+
+    {
+        uint8_t *program = NULL;
+        uint32_t program_size = 0;
+        if (!read_file(program_path, &program, &program_size)) {
+            char str[128];
+            sprintf(str, "Unable to read program %s", cmd_line);
+            MessageBox(wnd, str, "Error", MB_OK);
+            return 0;
+        }
+        chip8_init(program, program_size);
+        free(program);
+    }
+
+    const HDC hdc = GetDC(wnd);
 
     bmp_info.bmiHeader.biSize = sizeof(bmp_info.bmiHeader);
     bmp_info.bmiHeader.biWidth = CHIP8_SCR_W;
@@ -147,19 +167,6 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
     bmp_info.bmiHeader.biCompression = BI_RGB;
 
     sound_init();
-
-    {
-        uint8_t *program = NULL;
-        uint32_t program_size = 0;
-        if (!read_file(cmd_line, &program, &program_size)) {
-            char str[128];
-            sprintf(str, "Unable to read program %s", cmd_line);
-            MessageBox(wnd, str, "Error", MB_OK);
-            return 0;
-        }
-        chip8_init(program, program_size);
-        free(program);
-    }
 
     uint8_t prev_sound_timer = 0;
     static uint8_t screen[CHIP8_SCR_H][CHIP8_SCR_W];
