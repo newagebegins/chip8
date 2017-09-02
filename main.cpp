@@ -27,15 +27,7 @@ struct Backbuffer {
     BITMAPINFO *bitmapInfo;
 };
 
-void displayBackbuffer(Backbuffer *bb) {
-    StretchDIBits(bb->deviceContext,
-        0, 0, bb->windowWidth, bb->windowHeight,
-        0, 0, CHIP8_SCREEN_WIDTH, CHIP8_SCREEN_HEIGHT,
-        bb->mem, bb->bitmapInfo,
-        DIB_RGB_COLORS, SRCCOPY);
-}
-
-void readFile(const char *path, uint8_t **content, uint32_t *size) {
+void read_file(const char *path, uint8_t **content, uint32_t *size) {
     BOOL success;
 
     HANDLE fileHandle = CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -118,7 +110,7 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
 
     uint8_t *fileContent = NULL;
     uint32_t fileSize = 0;
-    readFile("../data/CHIP8/GAMES/PONG2", &fileContent, &fileSize);
+    read_file("../data/CHIP8/GAMES/PONG2", &fileContent, &fileSize);
     chip8_init(fileContent, fileSize);
     free(fileContent);
 
@@ -194,6 +186,11 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prevInst, LPSTR cmdLine, int cmdS
         for (uint32_t row = 0; row < CHIP8_SCREEN_HEIGHT; ++row)
             for (uint32_t col = 0; col < CHIP8_SCREEN_WIDTH; ++col)
                 bb->mem[row*CHIP8_SCREEN_WIDTH + col] = screen[row][col] ? 0xffffffff : 0xff000000;
-        displayBackbuffer(bb);
+        
+        StretchDIBits(bb->deviceContext,
+            0, 0, bb->windowWidth, bb->windowHeight,
+            0, 0, CHIP8_SCREEN_WIDTH, CHIP8_SCREEN_HEIGHT,
+            bb->mem, bb->bitmapInfo,
+            DIB_RGB_COLORS, SRCCOPY);
     }
 }
