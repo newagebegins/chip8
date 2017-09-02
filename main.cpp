@@ -131,23 +131,22 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
                     //debug_log("key %x, is down %x\n", msg.wParam, is_down);
                     switch (msg.wParam) {
                         case VK_ESCAPE: running = false; break;
-
-                        case VK_DECIMAL:  keys[0x0] = is_down; break;
-                        case VK_NUMPAD7:  keys[0x1] = is_down; break;
-                        case VK_NUMPAD8:  keys[0x2] = is_down; break;
-                        case VK_NUMPAD9:  keys[0x3] = is_down; break;
-                        case VK_NUMPAD4:  keys[0x4] = is_down; break;
-                        case VK_NUMPAD5:  keys[0x5] = is_down; break;
-                        case VK_NUMPAD6:  keys[0x6] = is_down; break;
-                        case VK_NUMPAD1:  keys[0x7] = is_down; break;
-                        case VK_NUMPAD2:  keys[0x8] = is_down; break;
-                        case VK_NUMPAD3:  keys[0x9] = is_down; break;
-                        case VK_NUMPAD0:  keys[0xa] = is_down; break;
-                        case VK_RETURN:   keys[0xb] = is_down; break;
-                        case VK_DIVIDE:   keys[0xc] = is_down; break;
-                        case VK_MULTIPLY: keys[0xd] = is_down; break;
-                        case VK_SUBTRACT: keys[0xe] = is_down; break;
-                        case VK_ADD:      keys[0xf] = is_down; break;
+                        case '1': keys[0x1] = is_down; break;
+                        case '2': keys[0x2] = is_down; break;
+                        case '3': keys[0x3] = is_down; break;
+                        case '4': keys[0xc] = is_down; break;
+                        case 'Q': keys[0x4] = is_down; break;
+                        case 'W': keys[0x5] = is_down; break;
+                        case 'E': keys[0x6] = is_down; break;
+                        case 'R': keys[0xd] = is_down; break;
+                        case 'A': keys[0x7] = is_down; break;
+                        case 'S': keys[0x8] = is_down; break;
+                        case 'D': keys[0x9] = is_down; break;
+                        case 'F': keys[0xe] = is_down; break;
+                        case 'Z': keys[0xa] = is_down; break;
+                        case 'X': keys[0x0] = is_down; break;
+                        case 'C': keys[0xb] = is_down; break;
+                        case 'V': keys[0xf] = is_down; break;
                     }
                     break;
                 }
