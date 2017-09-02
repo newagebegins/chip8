@@ -15,10 +15,6 @@ void debug_log(const char *format, ...) {
     OutputDebugString(str);
 }
 
-#define TARGET_FPS 60.0f
-#define MAX_DT (1.0f / TARGET_FPS)
-#define BACKBUFFER_BYTES (CHIP8_SCR_W * CHIP8_SCR_H * sizeof(uint32_t))
-
 void read_file(const char *path, uint8_t **content, uint32_t *size) {
     BOOL success;
 
@@ -41,10 +37,17 @@ void read_file(const char *path, uint8_t **content, uint32_t *size) {
     assert(success);
 }
 
+#define TARGET_FPS 60.0f
+#define MAX_DT (1.0f / TARGET_FPS)
+#define BACKBUFFER_BYTES (CHIP8_SCR_W * CHIP8_SCR_H * sizeof(uint32_t))
+
 static int window_width, window_height;
 static int dst_x, dst_y, dst_w, dst_h;
 static uint32_t backbuffer[BACKBUFFER_BYTES];
 static BITMAPINFO bmp_info;
+
+static bool running = true;
+static bool keys[CHIP8_NUM_KEYS];
 
 LRESULT CALLBACK wnd_proc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     switch (msg) {
@@ -75,6 +78,31 @@ LRESULT CALLBACK wnd_proc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam) {
             FillRect(hdc, &ps.rcPaint, (HBRUSH)GetStockObject(DKGRAY_BRUSH));
             StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
             EndPaint(wnd, &ps);
+            break;
+        }
+        case WM_KEYDOWN:
+        case WM_KEYUP: {
+            bool is_down = ((lparam & (1 << 31)) == 0);
+            //debug_log("key %x, is down %x\n", wparam, is_down);
+            switch (wparam) {
+                case VK_ESCAPE: running = false; break;
+                case '1': keys[0x1] = is_down; break;
+                case '2': keys[0x2] = is_down; break;
+                case '3': keys[0x3] = is_down; break;
+                case '4': keys[0xc] = is_down; break;
+                case 'Q': keys[0x4] = is_down; break;
+                case 'W': keys[0x5] = is_down; break;
+                case 'E': keys[0x6] = is_down; break;
+                case 'R': keys[0xd] = is_down; break;
+                case 'A': keys[0x7] = is_down; break;
+                case 'S': keys[0x8] = is_down; break;
+                case 'D': keys[0x9] = is_down; break;
+                case 'F': keys[0xe] = is_down; break;
+                case 'Z': keys[0xa] = is_down; break;
+                case 'X': keys[0x0] = is_down; break;
+                case 'C': keys[0xb] = is_down; break;
+                case 'V': keys[0xf] = is_down; break;
+            }
             break;
         }
         default:
@@ -134,58 +162,24 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
     chip8_init(program, program_size);
     free(program);
 
-    bool keys[CHIP8_NUM_KEYS] = { 0 };
     float cycle_timer = CHIP8_CYCLE_INTERVAL;
     uint8_t prev_sound_timer = 0;
 
-    bool running = true;
     static uint8_t screen[CHIP8_SCR_H][CHIP8_SCR_W];
 
     while (running) {
+        MSG msg;
+        if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+            if (msg.message == WM_QUIT) running = false;
+            continue;
+        }
+        
         perfc_prev = perfc;
         QueryPerformanceCounter(&perfc);
         dt = (float)(perfc.QuadPart - perfc_prev.QuadPart) / (float)perfc_freq.QuadPart;
         if (dt > MAX_DT) dt = MAX_DT;
-
-        MSG msg;
-        while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE)) {
-            switch (msg.message) {
-                case WM_QUIT:
-                    running = false;
-                    break;
-
-                case WM_KEYDOWN:
-                case WM_KEYUP: {
-                    bool is_down = ((msg.lParam & (1 << 31)) == 0);
-                    //debug_log("key %x, is down %x\n", msg.wParam, is_down);
-                    switch (msg.wParam) {
-                        case VK_ESCAPE: running = false; break;
-                        case '1': keys[0x1] = is_down; break;
-                        case '2': keys[0x2] = is_down; break;
-                        case '3': keys[0x3] = is_down; break;
-                        case '4': keys[0xc] = is_down; break;
-                        case 'Q': keys[0x4] = is_down; break;
-                        case 'W': keys[0x5] = is_down; break;
-                        case 'E': keys[0x6] = is_down; break;
-                        case 'R': keys[0xd] = is_down; break;
-                        case 'A': keys[0x7] = is_down; break;
-                        case 'S': keys[0x8] = is_down; break;
-                        case 'D': keys[0x9] = is_down; break;
-                        case 'F': keys[0xe] = is_down; break;
-                        case 'Z': keys[0xa] = is_down; break;
-                        case 'X': keys[0x0] = is_down; break;
-                        case 'C': keys[0xb] = is_down; break;
-                        case 'V': keys[0xf] = is_down; break;
-                    }
-                    break;
-                }
-
-                default:
-                    TranslateMessage(&msg);
-                    DispatchMessage(&msg);
-                    break;
-            }
-        }
 
         cycle_timer -= dt;
         if (cycle_timer <= 0) {
