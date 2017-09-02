@@ -37,8 +37,6 @@ void read_file(const char *path, uint8_t **content, uint32_t *size) {
     assert(success);
 }
 
-#define TARGET_FPS 60.0f
-#define MAX_DT (1.0f / TARGET_FPS)
 #define BACKBUFFER_BYTES (CHIP8_SCR_W * CHIP8_SCR_H * sizeof(uint32_t))
 
 static int window_width, window_height;
@@ -148,23 +146,15 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
 
     sound_init();
 
-    float dt = 0.0f;
-    LARGE_INTEGER perfc_freq = { 0 };
-    LARGE_INTEGER perfc = { 0 };
-    LARGE_INTEGER perfc_prev = { 0 };
+    {
+        uint8_t *program = NULL;
+        uint32_t program_size = 0;
+        read_file("../data/CHIP8/GAMES/PONG2", &program, &program_size);
+        chip8_init(program, program_size);
+        free(program);
+    }
 
-    QueryPerformanceFrequency(&perfc_freq);
-    QueryPerformanceCounter(&perfc);
-
-    uint8_t *program = NULL;
-    uint32_t program_size = 0;
-    read_file("../data/CHIP8/GAMES/PONG2", &program, &program_size);
-    chip8_init(program, program_size);
-    free(program);
-
-    float cycle_timer = CHIP8_CYCLE_INTERVAL;
     uint8_t prev_sound_timer = 0;
-
     static uint8_t screen[CHIP8_SCR_H][CHIP8_SCR_W];
 
     while (running) {
@@ -175,33 +165,24 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
             if (msg.message == WM_QUIT) running = false;
             continue;
         }
-        
-        perfc_prev = perfc;
-        QueryPerformanceCounter(&perfc);
-        dt = (float)(perfc.QuadPart - perfc_prev.QuadPart) / (float)perfc_freq.QuadPart;
-        if (dt > MAX_DT) dt = MAX_DT;
 
-        cycle_timer -= dt;
-        if (cycle_timer <= 0) {
-            cycle_timer += CHIP8_CYCLE_INTERVAL;
-            chip8_do_cycle(screen, keys);
+        chip8_do_cycle(screen, keys);
 
-            uint8_t sound_timer = chip8_get_sound_timer();
-            if (prev_sound_timer == 0 && sound_timer > 0) {
-                sound_start();
-            }
-            else if (prev_sound_timer > 0 && sound_timer == 0) {
-                sound_stop();
-            }
-            sound_update();
-            prev_sound_timer = sound_timer;
-
-            for (uint32_t row = 0; row < CHIP8_SCR_H; ++row)
-                for (uint32_t col = 0; col < CHIP8_SCR_W; ++col)
-                    backbuffer[row*CHIP8_SCR_W + col] = screen[row][col] ? 0xffffffff : 0xff000000;
-
-            StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
-            Sleep(CHIP8_CYCLE_INTERVAL * 1000);
+        uint8_t sound_timer = chip8_get_sound_timer();
+        if (prev_sound_timer == 0 && sound_timer > 0) {
+            sound_start();
         }
+        else if (prev_sound_timer > 0 && sound_timer == 0) {
+            sound_stop();
+        }
+        sound_update();
+        prev_sound_timer = sound_timer;
+
+        for (uint32_t row = 0; row < CHIP8_SCR_H; ++row)
+            for (uint32_t col = 0; col < CHIP8_SCR_W; ++col)
+                backbuffer[row*CHIP8_SCR_W + col] = screen[row][col] ? 0xffffffff : 0xff000000;
+
+        StretchDIBits(hdc, dst_x, dst_y, dst_w, dst_h, 0, 0, CHIP8_SCR_W, CHIP8_SCR_H, backbuffer, &bmp_info, DIB_RGB_COLORS, SRCCOPY);
+        Sleep(CHIP8_CYCLE_INTERVAL * 1000);
     }
 }
