@@ -11,13 +11,13 @@ static const IID IID_IAudioClient = __uuidof(IAudioClient);
 static const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
 
 #define PI 3.14159265359f
-#define TWOPI (2.0f*PI)
+#define TWO_PI (2.0f*PI)
 #define REFTIMES_PER_SEC 10000000
 #define SAMPLES_PER_SEC 48000
 #define MAX_BUFFER_DURATION_SEC ((1.0f / 60.0f)*2.0f)
 #define MAX_AMPLITUDE 0x7FFF/20
 #define TONE_FREQUENCY 440.0f
-#define PHASE_INCREMENT (TWOPI*TONE_FREQUENCY / SAMPLES_PER_SEC)
+#define PHASE_INCREMENT (TWO_PI*TONE_FREQUENCY / SAMPLES_PER_SEC)
 
 static IAudioClient *audio_client;
 static IAudioRenderClient *render_client;
@@ -88,7 +88,9 @@ void sound_update() {
     for (UINT32 frame = 0; frame < available_frames_count; ++frame) {
         buffer[frame] = (short)(sinf(phase) * amplitude);
         phase += PHASE_INCREMENT;
-        if (phase >= TWOPI) phase -= TWOPI;
+        if (phase >= TWO_PI) phase -= TWO_PI;
+        
+        // fade in/out
         if (playing) {
             if (amplitude < MAX_AMPLITUDE) ++amplitude;
         }
