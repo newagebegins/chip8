@@ -165,14 +165,15 @@ int CALLBACK WinMain(HINSTANCE inst, HINSTANCE prev_inst, LPSTR cmd_line, int cm
             chip8_do_cycle(screen, keys);
         }
 
-        if (prev_sound_timer == 0 && chip8_get_sound_timer() > 0) {
+        uint8_t sound_timer = chip8_get_sound_timer();
+        if (prev_sound_timer == 0 && sound_timer > 0) {
             sound_start();
         }
-        else if (prev_sound_timer > 0 && chip8_get_sound_timer() == 0) {
+        else if (prev_sound_timer > 0 && sound_timer == 0) {
             sound_stop();
         }
         sound_update();
-        prev_sound_timer = chip8_get_sound_timer();
+        prev_sound_timer = sound_timer;
 
         for (uint32_t row = 0; row < CHIP8_SCREEN_HEIGHT; ++row)
             for (uint32_t col = 0; col < CHIP8_SCREEN_WIDTH; ++col)
