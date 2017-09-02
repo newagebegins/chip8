@@ -53,15 +53,15 @@ static u8 screen[SCREEN_HEIGHT][SCREEN_WIDTH];
 #define CHIP8_STACK_SIZE     16
 #define CHIP8_NUM_KEYS       16
 
-typedef struct {
+struct Backbuffer {
   u32 mem[BACKBUFFER_BYTES];
   HDC deviceContext;
   u32 windowWidth;
   u32 windowHeight;
   BITMAPINFO *bitmapInfo;
-} Backbuffer;
+};
 
-typedef struct {
+struct Chip8 {
   u8  mem[CHIP8_MEMORY_SIZE];
   u16 PC;                      // program counter
   u8  V[CHIP8_NUM_REGISTERS];  // registers
@@ -74,12 +74,12 @@ typedef struct {
   u8  SP;                      // stack pointer
 
   u32 cycleCounter;
-} Chip8;
+};
 
-const GUID CLSID_MMDeviceEnumerator = {0xBCDE0395, 0xE52F, 0x467C, 0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E};
-const GUID IID_IMMDeviceEnumerator = {0xA95664D2, 0x9614, 0x4F35, 0xA7, 0x46, 0xDE, 0x8D, 0xB6, 0x36, 0x17, 0xE6};
-const GUID IID_IAudioClient = {0x1CB9AD4C, 0xDBFA, 0x4c32, 0xB1, 0x78, 0xC2, 0xF5, 0x68, 0xA7, 0x03, 0xB2};
-const GUID IID_IAudioRenderClient = {0xF294ACFC, 0x3146, 0x4483, 0xA7, 0xBF, 0xAD, 0xDC, 0xA7, 0xC2, 0x60, 0xE2};
+const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
+const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
+const IID IID_IAudioClient = __uuidof(IAudioClient);
+const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
 
 #define PI 3.14159265359f
 #define TWOPI (2.0f*PI)
@@ -102,13 +102,13 @@ void load_sound() {
   HRESULT hr;
 
   UINT32 numFramesPadding;
-  hr = audioClient->lpVtbl->GetCurrentPadding(audioClient, &numFramesPadding);
+  hr = audioClient->GetCurrentPadding(&numFramesPadding);
   ASSERT(SUCCEEDED(hr));
 
   UINT32 numFramesAvailable = bufferFramesCount - numFramesPadding;
 
   short *buffer;
-  hr = renderClient->lpVtbl->GetBuffer(renderClient, numFramesAvailable, (BYTE**)&buffer);
+  hr = renderClient->GetBuffer(numFramesAvailable, (BYTE**)&buffer);
   ASSERT(SUCCEEDED(hr));
 
   float incr = TWOPI*frequency / samplesPerSec;
@@ -130,7 +130,7 @@ void load_sound() {
     }
   }
 
-  hr = renderClient->lpVtbl->ReleaseBuffer(renderClient, numFramesAvailable, 0);
+  hr = renderClient->ReleaseBuffer(numFramesAvailable, 0);
   ASSERT(SUCCEEDED(hr));
 }
 
@@ -139,14 +139,14 @@ void sound_init() {
 
   IMMDeviceEnumerator *enumerator;
   CoInitialize(NULL);
-  hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void**)&enumerator);
+  hr = CoCreateInstance(CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, IID_IMMDeviceEnumerator, (void**)&enumerator);
   ASSERT(SUCCEEDED(hr));
 
   IMMDevice *device;
-  hr = enumerator->lpVtbl->GetDefaultAudioEndpoint(enumerator, eRender, eConsole, &device);
+  hr = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
   ASSERT(SUCCEEDED(hr));
 
-  hr = device->lpVtbl->Activate(device, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&audioClient);
+  hr = device->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&audioClient);
   ASSERT(SUCCEEDED(hr));
 
   WAVEFORMATEX waveFormat = { 0 };
@@ -158,17 +158,17 @@ void sound_init() {
   waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
 
   REFERENCE_TIME duration = (REFERENCE_TIME)(maxBufferDurationSec*REFTIMES_PER_SEC);
-  hr = audioClient->lpVtbl->Initialize(audioClient, AUDCLNT_SHAREMODE_SHARED, 0, duration, 0, &waveFormat, NULL);
+  hr = audioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, duration, 0, &waveFormat, NULL);
   ASSERT(SUCCEEDED(hr));
 
-  hr = audioClient->lpVtbl->GetBufferSize(audioClient, &bufferFramesCount);
+  hr = audioClient->GetBufferSize(&bufferFramesCount);
   ASSERT(SUCCEEDED(hr));
 
-  hr = audioClient->lpVtbl->GetService(audioClient, &IID_IAudioRenderClient, (void**)&renderClient);
+  hr = audioClient->GetService(IID_IAudioRenderClient, (void**)&renderClient);
   ASSERT(SUCCEEDED(hr));
 
   load_sound();
-  audioClient->lpVtbl->Start(audioClient);
+  audioClient->Start();
 }
 
 void sound_start() {
