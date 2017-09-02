@@ -6,9 +6,11 @@ Usage: `chip8 path/to/program`
 
 CHIP-8 supports 16 keys that are mapped to these keys in the emulator:
 
-1|2|3|4
-Q|W|E|R
-A|S|D|F
-Z|X|C|V
+```
+1234
+QWER
+ASDF
+ZXCV
+```
 
 `ESC` is exit.
