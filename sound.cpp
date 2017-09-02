@@ -5,27 +5,27 @@
 #include <math.h>
 #include <assert.h>
 
-const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
-const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
-const IID IID_IAudioClient = __uuidof(IAudioClient);
-const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
+static const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
+static const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
+static const IID IID_IAudioClient = __uuidof(IAudioClient);
+static const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
 
 #define PI 3.14159265359f
 #define TWOPI (2.0f*PI)
 #define REFTIMES_PER_SEC 10000000
-
-IAudioClient *audioClient;
-IAudioRenderClient *renderClient;
-const int samplesPerSec = 48000;
-const float maxBufferDurationSec = (1.0f / 60.0f)*2.0f;
-UINT32 bufferFramesCount;
-
-float frequency = 440.0f;
-float phase = 0;
-bool isPlaying = false;
+#define SAMPLES_PER_SEC 48000
+#define MAX_BUFFER_DURATION_SEC ((1.0f / 60.0f)*2.0f)
 #define MAX_AMPLITUDE 0x7FFF/20
-short amplitude = 0;
-short amplitudeStep = 1;
+#define TONE_FREQUENCY 440.0f
+#define PHASE_INCREMENT (TWOPI*TONE_FREQUENCY / SAMPLES_PER_SEC)
+
+static IAudioClient *audio_client;
+static IAudioRenderClient *render_client;
+static UINT32 buffer_frames_count;
+
+static bool playing;
+static float phase;
+static INT16 amplitude;
 
 void sound_init() {
     HRESULT hr;
@@ -39,72 +39,64 @@ void sound_init() {
     hr = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
     assert(SUCCEEDED(hr));
 
-    hr = device->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&audioClient);
+    hr = device->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&audio_client);
     assert(SUCCEEDED(hr));
 
-    WAVEFORMATEX waveFormat = { 0 };
-    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
-    waveFormat.nChannels = 1;
-    waveFormat.nSamplesPerSec = samplesPerSec;
-    waveFormat.wBitsPerSample = 16;
-    waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
-    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+    WAVEFORMATEX wave_format = { 0 };
+    wave_format.wFormatTag = WAVE_FORMAT_PCM;
+    wave_format.nChannels = 1;
+    wave_format.nSamplesPerSec = SAMPLES_PER_SEC;
+    wave_format.wBitsPerSample = 16;
+    wave_format.nBlockAlign = (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
+    wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
 
-    REFERENCE_TIME duration = (REFERENCE_TIME)(maxBufferDurationSec*REFTIMES_PER_SEC);
-    hr = audioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, duration, 0, &waveFormat, NULL);
+    REFERENCE_TIME duration = (REFERENCE_TIME)(MAX_BUFFER_DURATION_SEC*REFTIMES_PER_SEC);
+    hr = audio_client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, duration, 0, &wave_format, NULL);
     assert(SUCCEEDED(hr));
 
-    hr = audioClient->GetBufferSize(&bufferFramesCount);
+    hr = audio_client->GetBufferSize(&buffer_frames_count);
     assert(SUCCEEDED(hr));
 
-    hr = audioClient->GetService(IID_IAudioRenderClient, (void**)&renderClient);
+    hr = audio_client->GetService(IID_IAudioRenderClient, (void**)&render_client);
     assert(SUCCEEDED(hr));
 
     sound_update();
-    audioClient->Start();
+    audio_client->Start();
 }
 
 void sound_start() {
-    isPlaying = true;
+    playing = true;
 }
 
 void sound_stop() {
-    isPlaying = false;
+    playing = false;
 }
 
 void sound_update() {
     HRESULT hr;
 
-    UINT32 numFramesPadding;
-    hr = audioClient->GetCurrentPadding(&numFramesPadding);
+    UINT32 padding_frames_count;
+    hr = audio_client->GetCurrentPadding(&padding_frames_count);
     assert(SUCCEEDED(hr));
 
-    UINT32 numFramesAvailable = bufferFramesCount - numFramesPadding;
+    UINT32 available_frames_count = buffer_frames_count - padding_frames_count;
 
-    short *buffer;
-    hr = renderClient->GetBuffer(numFramesAvailable, (BYTE**)&buffer);
+    INT16 *buffer;
+    hr = render_client->GetBuffer(available_frames_count, (BYTE**)&buffer);
     assert(SUCCEEDED(hr));
 
-    float incr = TWOPI*frequency / samplesPerSec;
-
-    for (UINT32 i = 0; i < numFramesAvailable; ++i) {
-        buffer[i] = (short)(sinf(phase) * amplitude);
-        phase += incr;
+    for (UINT32 frame = 0; frame < available_frames_count; ++frame) {
+        buffer[frame] = (short)(sinf(phase) * amplitude);
+        phase += PHASE_INCREMENT;
         if (phase >= TWOPI) phase -= TWOPI;
-        if (isPlaying) {
-            amplitude += amplitudeStep;
-            if (amplitude > MAX_AMPLITUDE) {
-                amplitude = MAX_AMPLITUDE;
-            }
+        if (playing) {
+            if (amplitude < MAX_AMPLITUDE) ++amplitude;
         }
         else {
-            amplitude -= amplitudeStep;
-            if (amplitude < 0) {
-                amplitude = 0;
-            }
+            if (amplitude > 0) --amplitude;
         }
     }
 
-    hr = renderClient->ReleaseBuffer(numFramesAvailable, 0);
+    hr = render_client->ReleaseBuffer(available_frames_count, 0);
     assert(SUCCEEDED(hr));
 }
