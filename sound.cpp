@@ -15,7 +15,7 @@ static const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
 #define REFTIMES_PER_SEC 10000000
 #define SAMPLES_PER_SEC 48000
 #define MAX_BUFFER_DURATION_SEC ((1.0f / 60.0f)*2.0f)
-#define MAX_AMPLITUDE 0x7FFF/20
+#define MAX_AMPLITUDE 0x7FFF
 #define TONE_FREQUENCY 440.0f
 #define PHASE_INCREMENT (TWO_PI*TONE_FREQUENCY / SAMPLES_PER_SEC)
 
@@ -25,7 +25,7 @@ static UINT32 buffer_frames_count;
 
 static bool playing;
 static float phase;
-static INT16 amplitude;
+static float amplitude;
 
 void sound_init() {
     HRESULT hr;
@@ -85,17 +85,23 @@ void sound_update() {
     hr = render_client->GetBuffer(available_frames_count, (BYTE**)&buffer);
     assert(SUCCEEDED(hr));
 
+    const float fade_time = 0.25f;
+    const float fade_frames = SAMPLES_PER_SEC * fade_time;
+    const float amplitude_step = 1.0f / fade_frames;
+
     for (UINT32 frame = 0; frame < available_frames_count; ++frame) {
-        buffer[frame] = (short)(sinf(phase) * amplitude);
+        buffer[frame] = sinf(phase) * amplitude * MAX_AMPLITUDE;
         phase += PHASE_INCREMENT;
         if (phase >= TWO_PI) phase -= TWO_PI;
-        
+
         // fade in/out
         if (playing) {
-            if (amplitude < MAX_AMPLITUDE) ++amplitude;
+            amplitude += amplitude_step;
+            if (amplitude > 1.0f) amplitude = 1.0f;
         }
         else {
-            if (amplitude > 0) --amplitude;
+            amplitude -= amplitude_step;
+            if (amplitude < 0) amplitude = 0;
         }
     }
 
