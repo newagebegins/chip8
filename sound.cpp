@@ -40,12 +40,13 @@ void sound_init() {
     hr = device->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&audio_client);
     assert(SUCCEEDED(hr));
 
+    WAVEFORMATEX *mix_format;
+    hr = audio_client->GetMixFormat(&mix_format);
+    assert(SUCCEEDED(hr));
+
+    memcpy(&wave_format, mix_format, sizeof(WAVEFORMATEX));
     wave_format.wFormatTag = WAVE_FORMAT_PCM;
-    wave_format.nChannels = 2;
-    wave_format.nSamplesPerSec = 48000;
-    wave_format.wBitsPerSample = 32;
-    wave_format.nBlockAlign = (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
-    wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
+    wave_format.cbSize = 0;
 
     REFERENCE_TIME duration = (REFERENCE_TIME)(MAX_BUFFER_DURATION_SEC*REFTIMES_PER_SEC);
     hr = audio_client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, duration, 0, &wave_format, NULL);
