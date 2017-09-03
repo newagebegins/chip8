@@ -15,7 +15,7 @@ static const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
 #define REFTIMES_PER_SEC 10000000
 #define SAMPLES_PER_SEC 48000
 #define MAX_BUFFER_DURATION_SEC ((1.0f / 60.0f)*2.0f)
-#define MAX_AMPLITUDE 0x7FFF
+#define MAX_AMPLITUDE 0x7FFFFFFF
 #define TONE_FREQUENCY 440.0f
 #define PHASE_INCREMENT (TWO_PI*TONE_FREQUENCY / SAMPLES_PER_SEC)
 
@@ -44,9 +44,9 @@ void sound_init() {
 
     WAVEFORMATEX wave_format = { 0 };
     wave_format.wFormatTag = WAVE_FORMAT_PCM;
-    wave_format.nChannels = 1;
+    wave_format.nChannels = 2;
     wave_format.nSamplesPerSec = SAMPLES_PER_SEC;
-    wave_format.wBitsPerSample = 16;
+    wave_format.wBitsPerSample = 32;
     wave_format.nBlockAlign = (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
     wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
 
@@ -81,7 +81,7 @@ void sound_update() {
 
     UINT32 available_frames_count = buffer_frames_count - padding_frames_count;
 
-    INT16 *buffer;
+    INT32 *buffer;
     hr = render_client->GetBuffer(available_frames_count, (BYTE**)&buffer);
     assert(SUCCEEDED(hr));
 
@@ -89,8 +89,11 @@ void sound_update() {
     const float fade_frames = SAMPLES_PER_SEC * fade_time;
     const float amplitude_step = 1.0f / fade_frames;
 
-    for (UINT32 frame = 0; frame < available_frames_count; ++frame) {
-        buffer[frame] = sinf(phase) * amplitude * MAX_AMPLITUDE;
+    for (UINT32 frame = 0, sample = 0; frame < available_frames_count; ++frame) {
+        INT32 val = sinf(phase) * amplitude * MAX_AMPLITUDE;
+        for (int channel = 0; channel < 2; ++channel)
+            buffer[sample++] = val;
+        
         phase += PHASE_INCREMENT;
         if (phase >= TWO_PI) phase -= TWO_PI;
 
