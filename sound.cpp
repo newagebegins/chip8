@@ -81,18 +81,20 @@ void sound_update() {
 
     UINT32 available_frames_count = buffer_frames_count - padding_frames_count;
 
-    INT32 *buffer;
-    hr = render_client->GetBuffer(available_frames_count, (BYTE**)&buffer);
+    BYTE *buffer;
+    hr = render_client->GetBuffer(available_frames_count, &buffer);
     assert(SUCCEEDED(hr));
 
     const float fade_time = 0.25f;
     const float fade_frames = SAMPLES_PER_SEC * fade_time;
     const float amplitude_step = 1.0f / fade_frames;
+    int num_bytes = 4;
 
-    for (UINT32 frame = 0, sample = 0; frame < available_frames_count; ++frame) {
+    for (UINT32 frame = 0, b = 0; frame < available_frames_count; ++frame) {
         INT32 val = sinf(phase) * amplitude * MAX_AMPLITUDE;
         for (int channel = 0; channel < 2; ++channel)
-            buffer[sample++] = val;
+            for (int byte = 0; byte < num_bytes; ++byte)
+                buffer[b++] = (val >> (byte * 8)) & 0xFF;
         
         phase += PHASE_INCREMENT;
         if (phase >= TWO_PI) phase -= TWO_PI;
