@@ -13,11 +13,8 @@ static const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
 #define PI 3.14159265359f
 #define TWO_PI (2.0f*PI)
 #define REFTIMES_PER_SEC 10000000
-#define SAMPLES_PER_SEC 48000
 #define MAX_BUFFER_DURATION_SEC ((1.0f / 60.0f)*2.0f)
-#define MAX_AMPLITUDE 0x7FFFFFFF
 #define TONE_FREQUENCY 440.0f
-#define PHASE_INCREMENT (TWO_PI*TONE_FREQUENCY / SAMPLES_PER_SEC)
 
 static IAudioClient *audio_client;
 static IAudioRenderClient *render_client;
@@ -26,6 +23,7 @@ static UINT32 buffer_frames_count;
 static bool playing;
 static float phase;
 static float amplitude;
+static WAVEFORMATEX wave_format;
 
 void sound_init() {
     HRESULT hr;
@@ -42,10 +40,9 @@ void sound_init() {
     hr = device->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&audio_client);
     assert(SUCCEEDED(hr));
 
-    WAVEFORMATEX wave_format = { 0 };
     wave_format.wFormatTag = WAVE_FORMAT_PCM;
     wave_format.nChannels = 2;
-    wave_format.nSamplesPerSec = SAMPLES_PER_SEC;
+    wave_format.nSamplesPerSec = 48000;
     wave_format.wBitsPerSample = 32;
     wave_format.nBlockAlign = (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
     wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
@@ -72,6 +69,12 @@ void sound_stop() {
     playing = false;
 }
 
+static UINT32 power(UINT32 base, UINT32 exponent) {
+    UINT32 result = 1;
+    while (exponent-- > 0) result *= base;
+    return result;
+}
+
 void sound_update() {
     HRESULT hr;
 
@@ -86,17 +89,20 @@ void sound_update() {
     assert(SUCCEEDED(hr));
 
     const float fade_time = 0.25f;
-    const float fade_frames = SAMPLES_PER_SEC * fade_time;
+    const float fade_frames = wave_format.nSamplesPerSec * fade_time;
     const float amplitude_step = 1.0f / fade_frames;
-    int num_bytes = 4;
+    
+    const float phase_increment = (TWO_PI*TONE_FREQUENCY / wave_format.nSamplesPerSec);
+    const INT32 max_sample_val = power(2, wave_format.wBitsPerSample - 1) - 1;
+    const int num_bytes = wave_format.wBitsPerSample / 8;
 
     for (UINT32 frame = 0, b = 0; frame < available_frames_count; ++frame) {
-        INT32 val = sinf(phase) * amplitude * MAX_AMPLITUDE;
-        for (int channel = 0; channel < 2; ++channel)
+        INT32 val = sinf(phase) * amplitude * max_sample_val;
+        for (int channel = 0; channel < wave_format.nChannels; ++channel)
             for (int byte = 0; byte < num_bytes; ++byte)
                 buffer[b++] = (val >> (byte * 8)) & 0xFF;
         
-        phase += PHASE_INCREMENT;
+        phase += phase_increment;
         if (phase >= TWO_PI) phase -= TWO_PI;
 
         // fade in/out
